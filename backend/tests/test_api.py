@@ -101,3 +101,9 @@ def test_openapi_lists_all_routes(client):
     paths = client.get("/openapi.json").json()["paths"]
     assert {"/api/chat", "/api/plans", "/api/plans/{plan_id}", "/api/logs", "/api/logs/{session_id}",
             "/api/health"} <= set(paths)
+
+
+def test_anomalies_api(client):
+    client.post("/api/chat", json={"message": "계획", "session_id": "A1"})
+    [a] = client.get("/api/logs/A1/anomalies").json()
+    assert a["verdict"] == "OK" and a["diagnosis_status"] == "NONE"
