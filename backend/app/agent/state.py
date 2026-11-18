@@ -107,3 +107,4 @@ class AgentState(TypedDict, total=False):
     status: str
     answer: str
     output: dict[str, Any]
+    cache_ref: dict[str, Any]                # 한 턴 안의 Tool 결과 캐시 (재계획 때 재사용)
