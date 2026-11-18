@@ -1,0 +1,20 @@
+# 이 저장소에서 쓰는 라벨 목록 (참고용)
+# 이름 앞에 이모지를 붙인다. GitHub 웹 Issues > Labels 에서 만들거나 API로 만든다.
+- name: "✨ feat"
+  color: "1d76db"
+  description: 새 기능
+- name: "🐛 fix"
+  color: "d73a4a"
+  description: 버그 수정
+- name: "♻️ refactor"
+  color: "a2eeef"
+  description: 구조 개선
+- name: "📝 docs"
+  color: "0075ca"
+  description: 문서
+- name: "✅ test"
+  color: "bfd4f2"
+  description: 테스트
+- name: "📦 chore"
+  color: "ededed"
+  description: 설정, 의존성 등
