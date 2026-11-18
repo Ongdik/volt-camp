@@ -77,7 +77,7 @@ uvicorn app.main:app --reload     # http://127.0.0.1:8000/docs
 
 ```bash
 cd frontend
-python -m http.server 5173        # http://127.0.0.1:5173
+python serve.py                   # http://127.0.0.1:5173 (JS MIME 고정)
 ```
 
 백엔드 주소가 다르면 `index.html`에서 `window.VOLTCAMP_API`를 지정한다.
