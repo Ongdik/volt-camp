@@ -1,4 +1,4 @@
-"""Tool 공통 응답 형식과 실패 코드.
+"""Tool 공통 응답 형식 · 실패 코드 · 기본 클래스.
 
 모든 Tool은 성공이든 실패든 `ToolResult` 하나로 답한다.
   - 성공: ok=True,  data=결과,  error=None
@@ -8,10 +8,15 @@
 
 from __future__ import annotations
 
+import logging
+import time
+from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any
+from typing import Any, ClassVar, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class ErrorCode(str, Enum):
@@ -73,3 +78,66 @@ class ToolResult(BaseModel):
     def failure(cls, code: ErrorCode, message: str, meta: ToolMeta) -> ToolResult:
         error = ToolError(code=code, message=message, retryable=code in RETRYABLE_CODES)
         return cls(ok=False, error=error, meta=meta)
+
+
+class ToolFailure(Exception):
+    """Tool의 `run()` 안에서 '예상한 실패'를 알릴 때 던진다. `invoke()`가 실패 응답으로 바꾼다."""
+
+    def __init__(self, code: ErrorCode, message: str):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+class Tool(ABC):
+    """모든 Tool의 부모.
+
+    자식은 이름 · 설명 · 입력 모델 · `run()`만 정한다.
+    입력 검증, 예외 → 실패 응답 변환, 소요 시간 측정은 `invoke()`가 맡는다.
+    그래서 Agent 실행 흐름은 어떤 Tool이든 예외 없이 `ToolResult`만 받는다.
+    """
+
+    name: ClassVar[str]
+    description: ClassVar[str]           # Agent가 Tool을 고르는 기준. '무엇을 하는지'보다 '언제 쓰는지'를 적는다.
+    input_model: ClassVar[type[BaseModel]]
+    kind: ClassVar[Literal["external", "local"]] = "external"   # 외부 API 툴 / 로컬 서버 API 툴
+    source: ClassVar[str] = ""
+
+    @abstractmethod
+    def run(self, args: BaseModel, meta: ToolMeta) -> dict[str, Any]:
+        """실제 작업. 결과 data를 돌려준다.
+
+        - 예상한 실패는 `ToolFailure(code, message)`를 던진다.
+        - 요청과 다른 기준으로 조회했거나 추정이 섞였으면 `meta.actual` · `meta.estimated` · `meta.notes`를 채운다.
+        """
+
+    def invoke(self, raw_args: dict[str, Any] | None = None) -> ToolResult:
+        raw_args = raw_args or {}
+        meta = ToolMeta(tool=self.name, source=self.source, requested=dict(raw_args))
+        started = time.perf_counter()
+        try:
+            args = self.input_model.model_validate(raw_args)
+            data = self.run(args, meta)
+            result = ToolResult.success(data, meta)
+        except ValidationError as exc:
+            fields = ", ".join(".".join(str(p) for p in err["loc"]) or "(입력)" for err in exc.errors())
+            result = ToolResult.failure(ErrorCode.INVALID_INPUT, f"입력값을 확인해 주세요: {fields}", meta)
+        except ToolFailure as exc:
+            result = ToolResult.failure(exc.code, exc.message, meta)
+        except Exception:  # noqa: BLE001 - Tool 버그가 서비스 전체를 멈추지 않게 한다
+            logger.exception("Tool %s 실행 중 예상 못 한 오류", self.name)
+            result = ToolResult.failure(ErrorCode.INTERNAL_ERROR, "도구 실행 중 오류가 발생했습니다", meta)
+        result.meta.elapsed_ms = int((time.perf_counter() - started) * 1000)
+        return result
+
+    @classmethod
+    def spec(cls) -> dict[str, Any]:
+        """LLM에 넘길 명세 (OpenAI tool calling 형식)."""
+        return {
+            "type": "function",
+            "function": {
+                "name": cls.name,
+                "description": cls.description,
+                "parameters": cls.input_model.model_json_schema(),
+            },
+        }
