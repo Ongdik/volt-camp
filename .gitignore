@@ -24,3 +24,6 @@ dist/
 .vscode/
 .idea/
 .DS_Store
+
+# 외부 공유 금지 문서
+*.pdf
