@@ -274,11 +274,58 @@ def check_charger() -> CheckResult:
     return r
 
 
+# ---------------------------------------------------------------- 3. Open-Meteo
+
+def check_weather() -> CheckResult:
+    r = CheckResult("Open-Meteo (기온 · 강수 예보)")
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": CAMP_LAT,
+        "longitude": CAMP_LON,
+        "hourly": "temperature_2m,precipitation_probability,precipitation,shortwave_radiation",
+        "timezone": "Asia/Seoul",
+        "forecast_days": 16,
+    }
+    resp, r.elapsed_ms, err = http_get(url, params=params)
+    if err:
+        r.code = err
+        return r
+    body = parse_body(resp)
+    save_sample("weather_ok", body, params)
+    if not resp.ok:
+        r.code = f"HTTP_{resp.status_code}"
+        r.note(str(body)[:200])
+        return r
+
+    hourly = body.get("hourly", {})
+    times = hourly.get("time", [])
+    temps = [t for t in hourly.get("temperature_2m", []) if t is not None]
+    probs = [p for p in hourly.get("precipitation_probability", []) if p is not None]
+    r.ok = bool(times)
+    r.note(f"시간별 {len(times)}개, 범위 {times[0] if times else '-'} ~ {times[-1] if times else '-'}  ← 예보 제공 범위")
+    if temps:
+        r.note(f"기온 최저 {min(temps)}℃ / 최고 {max(temps)}℃, 강수확률 최대 {max(probs) if probs else '-'}%")
+    null_probs = sum(1 for p in hourly.get("precipitation_probability", []) if p is None)
+    r.note(f"강수확률 null 개수 {null_probs}  ← 먼 날짜에 값이 비는지 확인")
+
+    # 예보 범위 밖 날짜
+    far = dict(params)
+    far.pop("forecast_days")
+    far.update({"start_date": "2030-01-01", "end_date": "2030-01-02"})
+    resp, _, err = http_get(url, params=far)
+    if resp is not None:
+        fbody = parse_body(resp)
+        save_sample("weather_out_of_range", fbody, far)
+        r.note(f"범위 밖 날짜 응답: HTTP {resp.status_code}, {str(fbody)[:120]}")
+    return r
+
+
 # ---------------------------------------------------------------- 실행
 
 CHECKS = {
     "campsite": check_campsite,
     "charger": check_charger,
+    "weather": check_weather,
 }
 
 
