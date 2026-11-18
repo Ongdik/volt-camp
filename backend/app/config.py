@@ -11,6 +11,10 @@ from dotenv import load_dotenv
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
+# .env는 모듈을 처음 불러올 때 한 번 읽는다. 시스템에 같은 이름 변수가 남아 있어도 .env가 우선한다
+# (예전 키가 환경변수로 남아 있으면 401이 나는데 원인을 찾기 어렵다). 테스트는 그 뒤에 값을 덮어쓴다.
+load_dotenv(BACKEND_DIR / ".env", override=True)
+
 
 def _int(name: str, default: int) -> int:
     try:
@@ -34,7 +38,6 @@ class Settings:
 
 @lru_cache
 def get_settings() -> Settings:
-    load_dotenv(BACKEND_DIR / ".env")
     return Settings(
         data_go_kr_key=os.getenv("DATA_GO_KR_SERVICE_KEY", "").strip(),
         kakao_rest_key=os.getenv("KAKAO_REST_API_KEY", "").strip(),
