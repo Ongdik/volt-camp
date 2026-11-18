@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import Request
 
 from app.agent.graph import PlannerAgent
+from app.db.anomalies import AnomalyRepository
 from app.db.plans import PlanRepository
 from app.db.run_logs import RunLogRepository
 
@@ -19,3 +20,7 @@ def plans(request: Request) -> PlanRepository:
 
 def run_logs(request: Request) -> RunLogRepository:
     return request.app.state.run_logs
+
+
+def anomalies(request: Request) -> AnomalyRepository:
+    return request.app.state.anomalies
