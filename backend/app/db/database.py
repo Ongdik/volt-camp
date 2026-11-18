@@ -21,6 +21,25 @@ CREATE TABLE IF NOT EXISTS run_events (
     payload_json TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_run_events_session ON run_events(session_id, id);
+
+CREATE TABLE IF NOT EXISTS plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    campsite_json TEXT NOT NULL,
+    origin TEXT,
+    start_at TEXT NOT NULL,
+    end_at TEXT NOT NULL,
+    vehicle_json TEXT NOT NULL,
+    devices_json TEXT NOT NULL,
+    charge_stop_json TEXT,
+    expected_soc_json TEXT,
+    evidence_json TEXT,
+    memo TEXT NOT NULL DEFAULT '',
+    session_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_plans_period ON plans(start_at, end_at);
 """
 
 
