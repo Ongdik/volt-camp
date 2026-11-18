@@ -40,6 +40,18 @@ CREATE TABLE IF NOT EXISTS plans (
     updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_plans_period ON plans(start_at, end_at);
+
+CREATE TABLE IF NOT EXISTS anomalies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    turn_id TEXT NOT NULL UNIQUE,
+    verdict TEXT NOT NULL,
+    findings_json TEXT NOT NULL,
+    diagnosis TEXT,
+    diagnosis_status TEXT NOT NULL DEFAULT 'NONE',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_anomalies_session ON anomalies(session_id, id);
 """
 
 
