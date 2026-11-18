@@ -11,6 +11,7 @@ LLM은 analyze(의도 · 조건 추출)와 respond(계산 결과를 문장으로
 from __future__ import annotations
 
 import json
+import logging
 import time
 import uuid
 from datetime import date, datetime, timedelta
@@ -30,6 +31,8 @@ from app.events.bus import EventBus, RunEmitter
 from app.events.types import EventType
 from app.tools.base import FATAL_CODES, ErrorCode, ToolFailure, ToolResult
 from app.tools.registry import ToolRegistry
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_RADIUS_KM = 10
 MAX_RADIUS_KM = 20
@@ -134,6 +137,7 @@ class PlannerAgent:
         except ToolFailure as f:
             return {"status": "ERROR", "stop_reason": f.code.value, "answer": f.message}
         except Exception:  # noqa: BLE001
+            logger.exception("요청 분석(LLM) 중 예상하지 못한 오류")
             return {"status": "ERROR", "stop_reason": "LLM_ERROR",
                     "answer": "요청을 분석하는 중 문제가 생겼어요. 잠시 후 다시 말씀해 주세요."}
         em.emit(EventType.LLM_DECISION, node="analyze", kind="intent", decision=analysis.intent,

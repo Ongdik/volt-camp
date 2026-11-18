@@ -5,7 +5,7 @@ import pytest
 from app.agent.graph import PlannerAgent
 from app.events.bus import EventBus
 from app.events.types import EventType
-from app.tools.base import ErrorCode
+from app.tools.base import ErrorCode, ToolFailure
 from tests.agent_stubs import FULL_TRIP, MILD, RAINY, TODAY, FakeLLM, World, camp
 
 
@@ -279,3 +279,16 @@ def test_same_args_are_served_from_cache():
     assert tools_called(world).count("search_chargers") == 1
     cached = [e for e in events(r, EventType.TOOL_CALL) if e["payload"]["from_cache"]]
     assert [e["payload"]["tool"] for e in cached] == ["search_chargers"]
+
+
+def test_llm_quota_failure_tells_the_reason():
+    class OutOfTokens(FakeLLM):
+        def analyze(self, *a, **k):
+            raise ToolFailure(ErrorCode.QUOTA_EXCEEDED, "LLM 사용량(토큰)이 모두 소진됐어요")
+
+    world = World()
+    agent = PlannerAgent(world.registry(), lambda: OutOfTokens({}), world.geocode, today=lambda: TODAY)
+    r = agent.run("m")
+    assert r["status"] == "ERROR" and r["error_code"] == "QUOTA_EXCEEDED"
+    assert "소진" in r["answer"]
+    assert world.calls == []
