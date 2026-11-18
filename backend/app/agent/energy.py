@@ -51,8 +51,14 @@ class Evaluation(BaseModel):
 
 def evaluate(vehicle: Vehicle, devices: list[Device], distance_km: float,
              weather: dict[str, Any] | None = None, has_electric: bool | None = None,
-             charge_kwh: float = 0.0) -> Evaluation:
-    """후보 한 곳에 대한 세 가지 제약 판정. distance_km는 편도."""
+             charge_kwh: float = 0.0, return_distance_km: float | None = None,
+             charge_after_km: float | None = None) -> Evaluation:
+    """후보 한 곳에 대한 세 가지 제약 판정.
+
+    distance_km: 가는 길(편도). 충전소를 들르면 우회 거리가 포함된다.
+    return_distance_km: 돌아오는 길. 없으면 가는 길과 같다고 본다.
+    charge_after_km: 충전소까지의 거리. 주면 충전 직전 잔량을 계산해 metrics에 남긴다.
+    """
     C = vehicle.capacity_kwh
     site_power = has_electric is True
     min_temp = (weather or {}).get("night_min_temp_c", (weather or {}).get("min_temp_c"))
@@ -61,13 +67,15 @@ def evaluate(vehicle: Vehicle, devices: list[Device], distance_km: float,
     if weather is None:
         assumptions.append("날씨 예보가 없어 기온 보정 없이(1.0) 계산했습니다")
 
-    e_drive = distance_km / vehicle.efficiency_km_per_kwh * factor
+    per_km = factor / vehicle.efficiency_km_per_kwh
+    e_drive = distance_km * per_km
+    e_back = (return_distance_km if return_distance_km is not None else distance_km) * per_km
     e_camp_raw = sum(d.power_w * d.hours for d in devices) / 1000 / INVERTER_EFF
     e_camp = 0.0 if site_power else e_camp_raw
 
     soc_arrive = vehicle.soc_start - e_drive / C + charge_kwh / C
     soc_after = soc_arrive - e_camp / C
-    soc_return = soc_after - e_drive / C
+    soc_return = soc_after - e_back / C
     deficit = max((vehicle.v2l_limit - soc_after) * C, (vehicle.min_return - soc_return) * C, 0.0)
 
     ev = Evaluation(status="OK", assumptions=assumptions)
@@ -75,6 +83,7 @@ def evaluate(vehicle: Vehicle, devices: list[Device], distance_km: float,
         "distance_km_oneway": round(distance_km, 1),
         "temp_factor": factor,
         "e_drive_oneway_kwh": round(e_drive, 2),
+        "e_drive_back_kwh": round(e_back, 2),
         "e_camp_kwh": round(e_camp, 2),
         "e_camp_from_site_kwh": round(e_camp_raw, 2) if site_power else 0.0,
         "charge_kwh": round(charge_kwh, 2),
@@ -82,6 +91,9 @@ def evaluate(vehicle: Vehicle, devices: list[Device], distance_km: float,
                 "after_camp": round(soc_after, 3), "return": round(soc_return, 3)},
         "limits": {"v2l_limit": vehicle.v2l_limit, "min_return": vehicle.min_return},
     }
+
+    if charge_after_km is not None:
+        ev.metrics["soc"]["at_charger"] = round(vehicle.soc_start - charge_after_km * per_km / C, 3)
 
     # ① 에너지
     if deficit > 0 or soc_arrive <= 0:
