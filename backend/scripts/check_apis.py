@@ -320,12 +320,105 @@ def check_weather() -> CheckResult:
     return r
 
 
+# ---------------------------------------------------------------- 4. 카카오 로컬 + 길찾기
+
+ORIGIN_COORD: tuple[float, float] | None = None  # (lat, lon)
+
+
+def check_kakao_local() -> CheckResult:
+    global ORIGIN_COORD
+    r = CheckResult("카카오 로컬 (주소 → 좌표)")
+    env = require_env(r, "KAKAO_REST_API_KEY")
+    if not env:
+        return r
+    headers = {"Authorization": f"KakaoAK {env['KAKAO_REST_API_KEY']}"}
+    url = "https://dapi.kakao.com/v2/local/search/address.json"
+
+    params = {"query": ORIGIN_ADDRESS}
+    resp, r.elapsed_ms, err = http_get(url, params=params, headers=headers)
+    if err:
+        r.code = err
+        return r
+    body = parse_body(resp)
+    save_sample("kakao_local_ok", body, params)
+    if resp.status_code in (401, 403):
+        r.code = f"AUTH_FAILED(HTTP {resp.status_code})"
+        r.note(str(body)[:200] + "  ← 앱 설정에서 카카오맵(로컬) 사용 설정 확인")
+        return r
+    if not resp.ok:
+        r.code = f"HTTP_{resp.status_code}"
+        return r
+
+    docs = body.get("documents", [])
+    r.ok = bool(docs)
+    if docs:
+        ORIGIN_COORD = (float(docs[0]["y"]), float(docs[0]["x"]))
+        r.note(f"'{ORIGIN_ADDRESS}' → ({ORIGIN_COORD[0]}, {ORIGIN_COORD[1]})")
+    else:
+        r.code = "NO_RESULT"
+
+    params = {"query": "존재하지않는주소테스트123"}
+    resp, _, _ = http_get(url, params=params, headers=headers)
+    if resp is not None:
+        ebody = parse_body(resp)
+        save_sample("kakao_local_empty", ebody, params)
+        r.note(f"0건 응답: HTTP {resp.status_code}, documents {len(ebody.get('documents', []))}건")
+    return r
+
+
+def check_route() -> CheckResult:
+    r = CheckResult("카카오모빌리티 (자동차 길찾기)")
+    env = require_env(r, "KAKAO_REST_API_KEY")
+    if not env:
+        return r
+    origin = ORIGIN_COORD or (37.5663, 126.9779)  # 로컬 확인 실패 시 서울시청 좌표
+    headers = {"Authorization": f"KakaoAK {env['KAKAO_REST_API_KEY']}"}
+    url = "https://apis-navi.kakaomobility.com/v1/directions"
+
+    params = {"origin": f"{origin[1]},{origin[0]}", "destination": f"{CAMP_LON},{CAMP_LAT}", "priority": "RECOMMEND"}
+    resp, r.elapsed_ms, err = http_get(url, params=params, headers=headers)
+    if err:
+        r.code = err
+        return r
+    body = parse_body(resp)
+    save_sample("route_ok", body, params)
+    if resp.status_code in (401, 403):
+        r.code = f"AUTH_FAILED(HTTP {resp.status_code})"
+        r.note(str(body)[:200] + "  ← 길찾기 API 사용 권한 · 쿼터 확인")
+        return r
+    if not resp.ok:
+        r.code = f"HTTP_{resp.status_code}"
+        r.note(str(body)[:200])
+        return r
+
+    routes = body.get("routes", [])
+    first = routes[0] if routes else {}
+    if first.get("result_code") == 0:
+        summary = first.get("summary", {})
+        r.ok = True
+        r.note(f"편도 {summary.get('distance', 0) / 1000:.1f}km, {summary.get('duration', 0) / 60:.0f}분")
+    else:
+        r.code = f"NO_ROUTE(result_code={first.get('result_code')}, {first.get('result_msg')})"
+
+    # 경로가 없는 경우 (바다 한가운데 목적지)
+    params = {"origin": f"{origin[1]},{origin[0]}", "destination": "125.0,35.0"}
+    resp, _, _ = http_get(url, params=params, headers=headers)
+    if resp is not None:
+        nbody = parse_body(resp)
+        save_sample("route_no_route", nbody, params)
+        nr = (nbody.get("routes") or [{}])[0]
+        r.note(f"경로 없음 응답: HTTP {resp.status_code}, result_code={nr.get('result_code')}, {nr.get('result_msg')}")
+    return r
+
+
 # ---------------------------------------------------------------- 실행
 
 CHECKS = {
     "campsite": check_campsite,
     "charger": check_charger,
     "weather": check_weather,
+    "local": check_kakao_local,
+    "route": check_route,
 }
 
 
