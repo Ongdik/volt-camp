@@ -16,6 +16,8 @@ V2L(Vehicle-to-Load)을 지원하는 전기차는 캠핑장에서 하나의 작�
 | 계통 연결 | 이동 경로상의 급속 충전소 · 전기 사이트 캠핑장 |
 | EMS (에너지 관리) | Agent가 수요 · 공급 · 환경을 비교해 계획 |
 
+![대화 화면](docs/images/frontend-chat.png)
+
 ## 주요 기능
 
 - **차박 계획 수립**: 출발지 · 날짜 · 차량(배터리 용량 · 잔량) · 사용할 기기를 말하면 캠핑장 후보별로 도착 / 캠핑 후 / 귀가 시 예상 잔량을 계산
@@ -42,7 +44,7 @@ V2L(Vehicle-to-Load)을 지원하는 전기차는 캠핑장에서 하나의 작�
 
 ## 기술 스택
 
-Python 3.10+ · LangGraph · LangChain · FastAPI · SQLite · Vue.js (예정)
+Python 3.10+ · LangGraph · LangChain · FastAPI · SQLite · HTML/CSS/JavaScript(ES 모듈)
 
 ## 외부 데이터 출처
 
@@ -55,15 +57,30 @@ Python 3.10+ · LangGraph · LangChain · FastAPI · SQLite · Vue.js (예정)
 
 ## 시작하기
 
+### 백엔드
+
 ```bash
 cd backend
 python -m venv .venv
 # Windows: .venv\Scripts\activate   /   macOS·Linux: source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
-cp .env.example .env     # 키 입력 (Windows: copy .env.example .env)
-python scripts/check_apis.py   # 외부 API · LLM 연결 확인
+cp .env.example .env              # 키 입력 (Windows: copy .env.example .env)
+python scripts/check_apis.py      # 외부 API · LLM 연결 확인
+python -m pytest -q               # 테스트 (네트워크 없이 실제 응답 샘플로)
+uvicorn app.main:app --reload     # http://127.0.0.1:8000/docs
 ```
+
+### 프론트엔드
+
+빌드 없이 정적 파일로 동작한다. 백엔드를 켠 상태에서:
+
+```bash
+cd frontend
+python -m http.server 5173        # http://127.0.0.1:5173
+```
+
+백엔드 주소가 다르면 `index.html`에서 `window.VOLTCAMP_API`를 지정한다.
 
 ### 필요한 키
 
@@ -76,11 +93,14 @@ python scripts/check_apis.py   # 외부 API · LLM 연결 확인
 ## 진행 상황
 
 - [x] 외부 API 연결 확인 스크립트
-- [ ] Tool 4종 + 공통 응답 · 실패 코드
-- [ ] Agent 실행 흐름 · 재계획 · 대화 맥락
-- [ ] 이벤트 발행 · 로깅 Agent
-- [ ] FastAPI 백엔드
-- [ ] 프론트엔드
+- [x] Tool 4종 + 공통 응답 · 실패 코드
+- [x] 배터리 제약 계산 (에너지 · 출력 · 강수)
+- [x] Agent 실행 흐름 · 재계획 · 대화 맥락
+- [x] 이벤트 발행 · 로깅 Agent
+- [x] 차박 계획 저장 · 기간 겹침
+- [x] FastAPI 백엔드
+- [x] 프론트엔드 (대화 · 계획 관리 · 실행 로그)
+- [ ] 심화: 실행 로그 이상 징후 판단, 캘린더 연동
 
 ## 안내
 
