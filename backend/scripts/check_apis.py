@@ -428,44 +428,42 @@ def check_llm() -> CheckResult:
     model = env["LLM_MODEL"]
     started = time.perf_counter()
     try:
-        ping = client.chat.completions.create(
-            model=model, messages=[{"role": "user", "content": "연결 확인입니다. '확인'이라고만 답하세요."}]
-        )
-        r.note(f"응답: {ping.choices[0].message.content!r}")
+        # Chat Completions는 추론형 모델에서 function tool을 막는 경우가 있어 Responses API를 쓴다.
+        ping = client.responses.create(model=model, input="연결 확인입니다. '확인'이라고만 답하세요.")
+        r.note(f"응답: {ping.output_text!r}")
 
         tools = [{
             "type": "function",
-            "function": {
-                "name": "search_campsites",
-                "description": "사용자가 아직 캠핑장을 정하지 않았거나 다른 캠핑장 대안이 필요할 때, "
-                               "지역명 또는 좌표 주변의 캠핑장 후보를 찾는다.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "region": {"type": "string", "description": "지역명"},
-                        "require_electric": {"type": "boolean", "description": "전기 사용 가능 캠핑장만"},
-                    },
-                    "required": ["region"],
+            "name": "search_campsites",
+            "description": "사용자가 아직 캠핑장을 정하지 않았거나 다른 캠핑장 대안이 필요할 때, "
+                           "지역명 또는 좌표 주변의 캠핑장 후보를 찾는다.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "region": {"type": "string", "description": "지역명"},
+                    "require_electric": {"type": "boolean", "description": "전기 사용 가능 캠핑장만"},
                 },
+                "required": ["region"],
             },
         }]
-        tc = client.chat.completions.create(
+        tc = client.responses.create(
             model=model,
-            messages=[{"role": "user", "content": "이번 주말 가평에 전기 되는 캠핑장으로 차박 가고 싶어"}],
+            input=[{"role": "user", "content": "이번 주말 가평에 전기 되는 캠핑장으로 차박 가고 싶어"}],
             tools=tools,
         )
-        calls = tc.choices[0].message.tool_calls or []
+        calls = [o for o in tc.output if getattr(o, "type", "") == "function_call"]
         r.elapsed_ms = int((time.perf_counter() - started) * 1000)
         if calls:
             r.ok = True
-            r.note(f"Tool 선택: {calls[0].function.name}({calls[0].function.arguments})")
+            r.note(f"Tool 선택: {calls[0].name}({calls[0].arguments})")
         else:
             r.code = "NO_TOOL_CALL"
             r.note("Tool을 선택하지 않았습니다 → 설명 문구 · 모델 확인")
     except Exception as exc:  # noqa: BLE001 - 연결 확인용이므로 어떤 오류든 기록
         r.elapsed_ms = int((time.perf_counter() - started) * 1000)
         r.code = f"LLM_ERROR({type(exc).__name__})"
-        r.note(str(exc)[:200])
+        body = getattr(getattr(exc, "response", None), "text", "") or ""
+        r.note((body or str(exc))[:300])  # 상태 코드만으로는 원인을 알 수 없어 응답 본문을 남긴다
     return r
 
 
