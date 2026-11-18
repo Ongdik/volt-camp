@@ -25,8 +25,16 @@ export async function renderLogs(root) {
 async function detail(root, sessionId) {
   const box = $("#log-detail");
   try {
-    const events = await api.log(sessionId);
+    const [events, anomalies] = await Promise.all([api.log(sessionId), api.anomalies(sessionId).catch(() => [])]);
+    const VERDICT = { OK: ["ok", "이상 없음"], WARN: ["bad", "이상 징후"], UNDECIDABLE: ["warn", "판정 불가"] };
+    const checks = anomalies.map((a, i) => {
+      const [cls, label] = VERDICT[a.verdict] || ["info", a.verdict];
+      const findings = a.findings.map((f) => `<li>${esc(f.rule)} — ${esc(f.detail)} <span class="chip">#${f.evidence_seq.join(",")}</span></li>`).join("");
+      const diag = a.verdict === "WARN" ? `<div class="charge">🩺 원인 진단(LLM): ${a.diagnosis ? esc(a.diagnosis) : a.diagnosis_status === "PENDING" ? "진단 중…" : a.diagnosis_status === "FAILED" ? "진단 실패 (판정은 유지)" : "-"}</div>` : "";
+      return `<div class="card"><b>턴 ${i + 1}</b> <span class="tag ${cls}">${label}</span><span class="chip">규칙 판정</span>${findings ? `<ul>${findings}</ul>` : ""}${diag}</div>`;
+    }).join("");
     box.innerHTML = `<div class="actions" style="margin-top:0"><button class="danger" id="del-log">이 세션 로그 삭제</button></div>
+      <h4>이상 징후 점검</h4>${checks || '<div class="empty">점검 결과 없음</div>'}
       <h4>흐름</h4><div class="timeline" id="log-timeline"></div>
       <details><summary>원본 이벤트 ${events.length}건</summary><table><thead><tr><th>#</th><th>시각</th><th>종류</th><th>단계</th><th>내용</th></tr></thead><tbody>
       ${events.map((e) => `<tr><td>${e.seq}</td><td>${fmtDate(e.ts)}</td><td>${e.type}</td><td>${e.node || ""}</td><td class="payload">${esc(JSON.stringify(e.payload))}</td></tr>`).join("")}
