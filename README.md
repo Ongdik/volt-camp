@@ -50,10 +50,8 @@ Python 3.10+ · LangGraph · LangChain · FastAPI · SQLite · Vue.js (예정)
 |---|---|---|
 | 캠핑장 정보 | 한국관광공사 고캠핑 정보 조회서비스 (공공데이터포털) | 공공데이터포털 이용약관 · 개발계정 트래픽 |
 | 전기차 충전소 위치 · 상태 | 한국환경공단 전기자동차 충전소 정보 (공공데이터포털) | 공공데이터포털 이용약관 · 개발계정 트래픽 |
-| 기온 · 강수 예보 | [Open-Meteo](https://open-meteo.com/) | 비상업 무료, 일 10,000회 미만, CC BY 4.0 |
+| 기온 · 강수 예보 | 기상청 단기예보 조회서비스 (공공데이터포털) | 공공데이터포털 이용약관 · 개발계정 트래픽 |
 | 주소 검색 · 자동차 길찾기 | 카카오 로컬 API · 카카오모빌리티 길찾기 API | 각 서비스 무료 쿼터 |
-
-Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0)
 
 ## 시작하기
 
@@ -71,9 +69,9 @@ python scripts/check_apis.py   # 외부 API · LLM 연결 확인
 
 | 환경변수 | 발급처 |
 |---|---|
-| `DATA_GO_KR_SERVICE_KEY` | 공공데이터포털 — 고캠핑 · 전기자동차 충전소 정보 활용신청 후 일반 인증키(Decoding) |
+| `DATA_GO_KR_SERVICE_KEY` | 공공데이터포털 — 고캠핑 · 전기자동차 충전소 정보 · 기상청 단기예보 활용신청 후 일반 인증키(Decoding) |
 | `KAKAO_REST_API_KEY` | 카카오 디벨로퍼스 — 앱 생성 → 카카오맵 활성화 → REST API 키 |
-| `OPENAI_API_KEY`, `LLM_MODEL` | OpenAI (또는 호환 엔드포인트 + `OPENAI_BASE_URL`) |
+| `OPENAI_API_KEY`, `LLM_MODEL` | OpenAI (또는 호환 엔드포인트 + `OPENAI_BASE_URL`). Tool 호출은 Responses API를 사용 |
 
 ## 진행 상황
 
