@@ -1,0 +1,29 @@
+{
+ "meta": {
+  "total_count": 2
+ },
+ "documents": [
+  {
+   "region_type": "B",
+   "code": "4182025021",
+   "address_name": "경기도 가평군 가평읍 읍내리",
+   "region_1depth_name": "경기도",
+   "region_2depth_name": "가평군",
+   "region_3depth_name": "가평읍",
+   "region_4depth_name": "읍내리",
+   "x": 127.51921224148778,
+   "y": 37.8366751364274
+  },
+  {
+   "region_type": "H",
+   "code": "4182025000",
+   "address_name": "경기도 가평군 가평읍",
+   "region_1depth_name": "경기도",
+   "region_2depth_name": "가평군",
+   "region_3depth_name": "가평읍",
+   "region_4depth_name": "",
+   "x": 127.51655683884171,
+   "y": 37.825352909137926
+  }
+ ]
+}
