@@ -18,11 +18,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -274,49 +276,89 @@ def check_charger() -> CheckResult:
     return r
 
 
-# ---------------------------------------------------------------- 3. Open-Meteo
+# ---------------------------------------------------------------- 3. 기상청 단기예보
+
+KST = timezone(timedelta(hours=9))
+KMA_BASE_HOURS = (2, 5, 8, 11, 14, 17, 20, 23)  # 단기예보 발표 시각 (발표 후 약 10분 뒤부터 조회 가능)
+
+
+def latlon_to_kma_grid(lat: float, lon: float) -> tuple[int, int]:
+    """위경도 → 기상청 동네예보 격자(nx, ny). 기상청 Lambert Conformal Conic 변환식."""
+    re_km, grid_km = 6371.00877, 5.0
+    slat1, slat2, olon, olat = (math.radians(v) for v in (30.0, 60.0, 126.0, 38.0))
+    xo, yo = 43, 136
+
+    re = re_km / grid_km
+    sn = math.log(math.cos(slat1) / math.cos(slat2)) / math.log(
+        math.tan(math.pi * 0.25 + slat2 * 0.5) / math.tan(math.pi * 0.25 + slat1 * 0.5)
+    )
+    sf = math.pow(math.tan(math.pi * 0.25 + slat1 * 0.5), sn) * math.cos(slat1) / sn
+    ro = re * sf / math.pow(math.tan(math.pi * 0.25 + olat * 0.5), sn)
+    ra = re * sf / math.pow(math.tan(math.pi * 0.25 + math.radians(lat) * 0.5), sn)
+    theta = math.radians(lon) - olon
+    if theta > math.pi:
+        theta -= 2.0 * math.pi
+    if theta < -math.pi:
+        theta += 2.0 * math.pi
+    theta *= sn
+    return int(math.floor(ra * math.sin(theta) + xo + 0.5)), int(math.floor(ro - ra * math.cos(theta) + yo + 0.5))
+
+
+def latest_kma_base(now: datetime | None = None) -> tuple[str, str]:
+    """지금 조회 가능한 가장 최근 발표 시각 (base_date, base_time)."""
+    now = (now or datetime.now(KST)) - timedelta(minutes=10)
+    hours = [h for h in KMA_BASE_HOURS if h <= now.hour]
+    if not hours:  # 02:10 이전이면 전날 23시 발표
+        now -= timedelta(days=1)
+        hours = [23]
+    return now.strftime("%Y%m%d"), f"{hours[-1]:02d}00"
+
 
 def check_weather() -> CheckResult:
-    r = CheckResult("Open-Meteo (기온 · 강수 예보)")
-    url = "https://api.open-meteo.com/v1/forecast"
-    params = {
-        "latitude": CAMP_LAT,
-        "longitude": CAMP_LON,
-        "hourly": "temperature_2m,precipitation_probability,precipitation,shortwave_radiation",
-        "timezone": "Asia/Seoul",
-        "forecast_days": 16,
-    }
+    r = CheckResult("기상청 단기예보 (기온 · 강수)")
+    env = require_env(r, "DATA_GO_KR_SERVICE_KEY")
+    if not env:
+        return r
+
+    url = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"
+    nx, ny = latlon_to_kma_grid(CAMP_LAT, CAMP_LON)
+    base_date, base_time = latest_kma_base()
+    params = {"serviceKey": env["DATA_GO_KR_SERVICE_KEY"], "pageNo": 1, "numOfRows": 1000, "dataType": "JSON",
+              "base_date": base_date, "base_time": base_time, "nx": nx, "ny": ny}
     resp, r.elapsed_ms, err = http_get(url, params=params)
     if err:
         r.code = err
         return r
     body = parse_body(resp)
     save_sample("weather_ok", body, params)
-    if not resp.ok:
-        r.code = f"HTTP_{resp.status_code}"
-        r.note(str(body)[:200])
+    r.code = data_go_kr_error(body) or ("" if resp.ok else f"HTTP_{resp.status_code}")
+    if r.code:
+        r.note("기상청_단기예보 조회서비스 활용신청 여부 확인")
         return r
 
-    hourly = body.get("hourly", {})
-    times = hourly.get("time", [])
-    temps = [t for t in hourly.get("temperature_2m", []) if t is not None]
-    probs = [p for p in hourly.get("precipitation_probability", []) if p is not None]
-    r.ok = bool(times)
-    r.note(f"시간별 {len(times)}개, 범위 {times[0] if times else '-'} ~ {times[-1] if times else '-'}  ← 예보 제공 범위")
+    items = find_items(body)
+    r.ok = bool(items)
+    by_cat: dict[str, list[dict]] = {}
+    for it in items:
+        by_cat.setdefault(it.get("category"), []).append(it)
+    dates = sorted({it.get("fcstDate") for it in items})
+    r.note(f"발표 {base_date} {base_time}, 격자 ({nx}, {ny}), 항목 {len(items)}개, 카테고리 {sorted(by_cat)}")
+    r.note(f"예보 날짜 {dates[0] if dates else '-'} ~ {dates[-1] if dates else '-'} ({len(dates)}일)  ← 예보 제공 범위")
+    temps = [float(it["fcstValue"]) for it in by_cat.get("TMP", [])]
+    pops = [int(it["fcstValue"]) for it in by_cat.get("POP", [])]
+    rain = [it for it in by_cat.get("PCP", []) if it.get("fcstValue") != "강수없음"]
     if temps:
-        r.note(f"기온 최저 {min(temps)}℃ / 최고 {max(temps)}℃, 강수확률 최대 {max(probs) if probs else '-'}%")
-    null_probs = sum(1 for p in hourly.get("precipitation_probability", []) if p is None)
-    r.note(f"강수확률 null 개수 {null_probs}  ← 먼 날짜에 값이 비는지 확인")
+        r.note(f"기온 최저 {min(temps)}℃ / 최고 {max(temps)}℃, 강수확률 최대 {max(pops) if pops else '-'}%, "
+               f"강수 예보 시간 {len(rain)}개")
 
-    # 예보 범위 밖 날짜
-    far = dict(params)
-    far.pop("forecast_days")
-    far.update({"start_date": "2030-01-01", "end_date": "2030-01-02"})
-    resp, _, err = http_get(url, params=far)
+    # 제공 범위 밖 발표일 (기상청은 최근 며칠치 발표만 조회 가능)
+    old = dict(params, base_date=(datetime.now(KST) - timedelta(days=7)).strftime("%Y%m%d"))
+    resp, _, _ = http_get(url, params=old)
     if resp is not None:
-        fbody = parse_body(resp)
-        save_sample("weather_out_of_range", fbody, far)
-        r.note(f"범위 밖 날짜 응답: HTTP {resp.status_code}, {str(fbody)[:120]}")
+        obody = parse_body(resp)
+        save_sample("weather_out_of_range", obody, old)
+        r.note(f"범위 밖 발표일 응답: HTTP {resp.status_code}, resultCode={find_value(obody, 'resultCode')}, "
+               f"{find_value(obody, 'resultMsg')}")
     return r
 
 
