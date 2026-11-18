@@ -170,9 +170,116 @@ def require_env(result: CheckResult, *names: str) -> dict[str, str] | None:
     return values
 
 
+# ---------------------------------------------------------------- 1. 고캠핑
+
+def check_campsite() -> CheckResult:
+    r = CheckResult("고캠핑 (캠핑장 후보)")
+    env = require_env(r, "DATA_GO_KR_SERVICE_KEY")
+    if not env:
+        return r
+
+    base = "https://apis.data.go.kr/B551011/GoCamping"
+    common = {
+        "serviceKey": env["DATA_GO_KR_SERVICE_KEY"],
+        "MobileOS": "ETC",
+        "MobileApp": "VoltCampCheck",
+        "_type": "json",
+        "pageNo": 1,
+        "numOfRows": 10,
+    }
+
+    params = {**common, "mapX": CAMP_LON, "mapY": CAMP_LAT, "radius": 20000}
+    resp, r.elapsed_ms, err = http_get(f"{base}/locationBasedList", params=params)
+    op = "locationBasedList"
+    if resp is not None and resp.status_code == 404:
+        # 위치 기반 오퍼레이션이 없으면 전체 목록으로 확인
+        params = dict(common)
+        resp, r.elapsed_ms, err = http_get(f"{base}/basedList", params=params)
+        op = "basedList"
+    if err:
+        r.code = err
+        return r
+
+    body = parse_body(resp)
+    save_sample("campsite_ok", body, params)
+    r.code = data_go_kr_error(body) or ("" if resp.ok else f"HTTP_{resp.status_code}")
+    if r.code:
+        return r
+
+    items = find_items(body)
+    r.ok = True
+    r.note(f"오퍼레이션 {op}, 받은 건수 {len(items)}, totalCount={find_value(body, 'totalCount')}")
+    if items:
+        r.note(f"필드: {', '.join(sorted(items[0].keys()))}")
+        electric = [it for it in items if "전기" in str(it.get("sbrsCl", ""))]
+        r.note(f"부대시설(sbrsCl)에 '전기' 포함: {len(electric)}/{len(items)}건  ← has_electric 매핑 확인")
+        for it in items[:3]:
+            r.note(f"  - {it.get('facltNm')} | 업종 {it.get('induty')} | 부대시설 {it.get('sbrsCl')} | "
+                   f"좌표 ({it.get('mapY')}, {it.get('mapX')})")
+
+    # 결과 0건일 때의 응답 모양
+    params = {**common, "keyword": "존재하지않는캠핑장테스트"}
+    resp, _, err = http_get(f"{base}/searchList", params=params)
+    if resp is not None:
+        empty_body = parse_body(resp)
+        save_sample("campsite_empty", empty_body, params)
+        r.note(f"0건 응답: HTTP {resp.status_code}, 항목 {len(find_items(empty_body))}건, "
+               f"items 값 형태 = {type(find_value(empty_body, 'items')).__name__}")
+    return r
+
+
+# ---------------------------------------------------------------- 2. 전기차 충전소
+
+def check_charger() -> CheckResult:
+    r = CheckResult("전기차 충전소 (위치 · 상태)")
+    env = require_env(r, "DATA_GO_KR_SERVICE_KEY")
+    if not env:
+        return r
+
+    base = "https://apis.data.go.kr/B552584/EvCharger"
+    common = {"serviceKey": env["DATA_GO_KR_SERVICE_KEY"], "pageNo": 1, "numOfRows": 50,
+              "zcode": CAMP_ZCODE, "dataType": "JSON"}
+
+    resp, r.elapsed_ms, err = http_get(f"{base}/getChargerInfo", params=common)
+    if err:
+        r.code = err
+        return r
+    body = parse_body(resp)
+    save_sample("charger_info", body, common)
+    r.code = data_go_kr_error(body) or ("" if resp.ok else f"HTTP_{resp.status_code}")
+    if r.code:
+        return r
+
+    items = find_items(body)
+    r.ok = True
+    r.note(f"getChargerInfo 받은 건수 {len(items)}, totalCount={find_value(body, 'totalCount')}")
+    if items:
+        r.note(f"필드: {', '.join(sorted(items[0].keys()))}")
+        for it in items[:3]:
+            r.note(f"  - {it.get('statNm')} | 타입 {it.get('chgerType')} | 출력 {it.get('output')} | "
+                   f"상태 {it.get('stat')} | 좌표 ({it.get('lat')}, {it.get('lng')})")
+
+    status_params = {**common, "period": 10}
+    resp, _, err = http_get(f"{base}/getChargerStatus", params=status_params)
+    if resp is not None:
+        sbody = parse_body(resp)
+        save_sample("charger_status", sbody, status_params)
+        sitems = find_items(sbody)
+        stats: dict[str, int] = {}
+        for it in sitems:
+            stats[str(it.get("stat"))] = stats.get(str(it.get("stat")), 0) + 1
+        r.note(f"getChargerStatus(최근 10분 갱신) {len(sitems)}건, stat 값 분포 {stats}  ← 상태 코드 매핑 확인")
+    else:
+        r.note(f"getChargerStatus 호출 실패: {err}")
+    return r
+
+
 # ---------------------------------------------------------------- 실행
 
-CHECKS: dict = {}
+CHECKS = {
+    "campsite": check_campsite,
+    "charger": check_charger,
+}
 
 
 def main() -> int:
