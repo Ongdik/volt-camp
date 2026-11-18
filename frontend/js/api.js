@@ -1,5 +1,6 @@
 // 백엔드 API 호출. 오류는 {error: {code, message}}의 message만 화면에 쓴다 (상세 · 키 미노출).
-export const API_BASE = (window.VOLTCAMP_API || "http://127.0.0.1:8000").replace(/\/$/, "");
+// 기본은 같은 출처(serve.py가 /api를 백엔드로 넘긴다). 다른 주소를 쓰려면 window.VOLTCAMP_API 지정
+export const API_BASE = (window.VOLTCAMP_API ?? "").replace(/\/$/, "");
 
 export class ApiError extends Error {
   constructor(code, message, status) { super(message); this.code = code; this.status = status; }

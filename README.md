@@ -77,10 +77,12 @@ uvicorn app.main:app --reload     # http://127.0.0.1:8000/docs
 
 ```bash
 cd frontend
-python serve.py                   # http://127.0.0.1:5173 (JS MIME 고정)
+python serve.py                   # http://127.0.0.1:5173
+python serve.py 5173 http://127.0.0.1:8000   # 포트 · 백엔드 주소 지정
 ```
 
-백엔드 주소가 다르면 `index.html`에서 `window.VOLTCAMP_API`를 지정한다.
+`serve.py`는 정적 파일을 캐시 없이 내주고 `/api/*` 요청을 백엔드로 넘긴다. 브라우저 입장에서는 같은 출처라
+CORS 설정 없이 동작한다. 백엔드를 다른 주소로 직접 부르려면 `index.html`에서 `window.VOLTCAMP_API`를 지정한다.
 
 ### 필요한 키
 
