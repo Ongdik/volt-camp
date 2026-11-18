@@ -1,0 +1,9 @@
+[project]
+name = "voltcamp-backend"
+version = "0.1.0"
+description = "VoltCamp — 전기차 V2L 차박 전력 플래너 백엔드"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
