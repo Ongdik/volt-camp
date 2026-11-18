@@ -104,3 +104,14 @@ def test_device_catalog_and_user_values():
     assert make_device("전기포트", 0.2).heating
     with pytest.raises(ValueError):
         make_device("모르는기기", 1)
+
+
+def test_detour_outbound_and_direct_return():
+    mat = make_device("전기장판", hours=8)
+    same = evaluate(car(0.80), [mat], ONE_WAY_KM, MILD)
+    detour = evaluate(car(0.80), [mat], ONE_WAY_KM + 10, MILD, return_distance_km=ONE_WAY_KM, charge_after_km=40)
+
+    assert detour.metrics["e_drive_back_kwh"] == same.metrics["e_drive_back_kwh"]
+    assert detour.metrics["e_drive_oneway_kwh"] > same.metrics["e_drive_oneway_kwh"]
+    # 충전소(40km) 도착 직전: 0.80 − 40 × 1.15 / 5 / 77.4 = 0.681
+    assert detour.metrics["soc"]["at_charger"] == pytest.approx(0.681, abs=0.001)
