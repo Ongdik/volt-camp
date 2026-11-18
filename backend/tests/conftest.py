@@ -1,7 +1,10 @@
 """테스트 공통: 실제 응답 샘플(tests/fixtures) 로딩, 가짜 HTTP 응답, 테스트용 설정."""
 
 import json
+import os
 from pathlib import Path
+
+os.environ.setdefault("VOLTCAMP_NO_AUTOAPP", "1")   # 테스트에서 실제 앱(DB 파일 · 실제 Agent)을 만들지 않는다
 
 import pytest
 import requests
