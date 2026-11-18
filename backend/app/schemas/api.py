@@ -44,6 +44,7 @@ class ChatResponse(BaseModel):
     saved_plan: dict[str, Any] | None = None
     overlaps: list[dict[str, Any]] = []
     error_code: str | None = None
+    previous_warning: dict[str, Any] | None = Field(default=None, description="같은 세션 직전 턴의 이상 징후 판정")
     elapsed_ms: int
     timeline: list[dict[str, Any]] = []
 

@@ -61,6 +61,7 @@ class PlannerAgent:
         self.memory = memory or MemoryStore()
         self.max_replan = max_replan
         self.today = today or (lambda: datetime.now(KST).date())
+        self.warning_lookup: Callable[[str], dict[str, Any] | None] | None = None   # 로깅 Agent의 이상 징후 판정
         self.graph = self._build()
 
     # ------------------------------------------------------------------ 공통
@@ -573,6 +574,15 @@ class PlannerAgent:
         elapsed = int((time.perf_counter() - started) * 1000)
         em.emit(EventType.TURN_END, status=state.get("status"), elapsed_ms=elapsed,
                 replans=len(state.get("replans", [])))
+        previous_warning = None
+        if self.warning_lookup is not None:
+            try:
+                w = self.warning_lookup(session_id)
+                if w and w["turn_id"] != turn_id:
+                    previous_warning = {"turn_id": w["turn_id"], "findings": w["findings"], "diagnosis": w.get("diagnosis")}
+            except Exception:  # noqa: BLE001 - 참조 실패가 응답을 막지 않는다
+                previous_warning = None
         return {"session_id": session_id, "turn_id": turn_id, "status": state.get("status"),
+                "previous_warning": previous_warning,
                 "answer": state.get("answer", ""), **(state.get("output") or {}), "elapsed_ms": elapsed,
                 "timeline": [e.model_dump(mode="json") for e in em.timeline]}

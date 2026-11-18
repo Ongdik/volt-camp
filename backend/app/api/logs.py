@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Response
 
 from app.api import deps
 from app.api.errors import ApiError
+from app.db.anomalies import AnomalyRepository
 from app.db.run_logs import RunLogRepository
 
 router = APIRouter(prefix="/api/logs", tags=["실행 로그"])
@@ -24,8 +25,15 @@ def get_log(session_id: str, logs: RunLogRepository = Depends(deps.run_logs)) ->
     return events
 
 
+@router.get("/{session_id}/anomalies", summary="턴별 이상 징후 판정(규칙)과 원인 진단(LLM)")
+def get_anomalies(session_id: str, anomalies: AnomalyRepository = Depends(deps.anomalies)) -> list[dict]:
+    return anomalies.for_session(session_id)
+
+
 @router.delete("/{session_id}", status_code=204, summary="세션 실행 로그 삭제")
-def delete_log(session_id: str, logs: RunLogRepository = Depends(deps.run_logs)) -> Response:
+def delete_log(session_id: str, logs: RunLogRepository = Depends(deps.run_logs),
+               anomalies: AnomalyRepository = Depends(deps.anomalies)) -> Response:
     if logs.delete_session(session_id) == 0:
         raise ApiError(404, "LOG_NOT_FOUND", "해당 세션의 실행 로그가 없습니다")
+    anomalies.delete_session(session_id)
     return Response(status_code=204)

@@ -35,5 +35,6 @@ export const api = {
   deletePlan: (id) => request(`/api/plans/${id}`, { method: "DELETE" }),
   logs: () => request("/api/logs"),
   log: (sessionId) => request(`/api/logs/${encodeURIComponent(sessionId)}`),
+  anomalies: (sessionId) => request(`/api/logs/${encodeURIComponent(sessionId)}/anomalies`),
   deleteLog: (sessionId) => request(`/api/logs/${encodeURIComponent(sessionId)}`, { method: "DELETE" }),
 };

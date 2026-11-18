@@ -91,6 +91,10 @@ function renderAnswer(r) {
   if (r.assumptions?.length) html += `<details><summary>계산에 쓴 가정 ${r.assumptions.length}개</summary><ul>${r.assumptions.map((a) => `<li>${esc(a)}</li>`).join("")}</ul></details>`;
   if (r.plan_draft && !r.saved_plan) html += `<div class="actions"><button class="primary save-plan">이 계획 저장</button></div>`;
   (r.notices || []).forEach((n) => { html += `<div class="notice">⚠️ ${esc(n)}</div>`; });
+  if (r.previous_warning) {
+    const w = r.previous_warning;
+    html += `<div class="notice">🩺 직전 실행에서 이상 징후: ${esc(w.findings.map((f) => f.detail).join(" / "))}${w.diagnosis ? ` — ${esc(w.diagnosis)}` : ""}</div>`;
+  }
   const replans = r.replans?.length ? ` · 재계획 ${r.replans.length}회` : "";
   html += `<div class="meta"><span class="tag ${cls}">${label}</span> ${esc(r.intent || "")}${replans} · ${(r.elapsed_ms / 1000).toFixed(1)}초</div>`;
   return html;
