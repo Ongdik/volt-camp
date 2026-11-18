@@ -1,0 +1,89 @@
+# VoltCamp ⚡🏕️
+
+> 전기차 배터리를 캠핑장 전원으로 쓰는 차박 계획을, 실제 데이터로 검증해 주는 AI Agent 플래너
+
+"이 배터리로 거기까지 가서 밤새 전기장판 켜고 돌아올 수 있을까?"
+VoltCamp는 이 질문을 캠핑장 · 충전소 · 날씨 · 경로 데이터로 계산하고, 부족하면 충전 경유지나 다른 캠핑장을 찾아 차박 계획을 다시 짭니다.
+
+## 왜 만들었나 — 작은 마이크로그리드
+
+V2L(Vehicle-to-Load)을 지원하는 전기차는 캠핑장에서 하나의 작은 마이크로그리드가 됩니다.
+
+| 마이크로그리드 구성 | VoltCamp에서 |
+|---|---|
+| ESS (에너지 저장장치) | 전기차 배터리 |
+| 섬(Island) 모드 공급 | 캠핑장에서 V2L로 가전 사용 |
+| 계통 연결 | 이동 경로상의 급속 충전소 · 전기 사이트 캠핑장 |
+| EMS (에너지 관리) | Agent가 수요 · 공급 · 환경을 비교해 계획 |
+
+## 주요 기능
+
+- **차박 계획 수립**: 출발지 · 날짜 · 차량(배터리 용량 · 잔량) · 사용할 기기를 말하면 캠핑장 후보별로 도착 / 캠핑 후 / 귀가 시 예상 잔량을 계산
+- **3가지 제약 판단**
+  - 에너지: 왕복 주행 + 캠핑 소비 후에도 V2L 방전 제한 · 귀가 최소 잔량을 지키는지
+  - 출력: 동시에 쓰는 기기 전력이 V2L 최대 출력 이내인지
+  - 강수: 비 예보 시 실외 V2L 사용이 불가능한지
+- **재계획**: 조건을 못 맞추면 충전 경유 추가 → 전기 사이트 캠핑장으로 교체 → 탐색 반경 확대 (상한 있음)
+- **대화 맥락 유지**: "같은 날 홍천 쪽으로"처럼 바뀐 조건만 반영
+- **계획 관리**: 차박 계획 저장 · 조회 · 수정 · 삭제, 기간이 겹치는 계획 알림
+- **실행 로그**: 메인 Agent의 단계 · Tool 호출 · 판단을 이벤트로 발행하고, 별도 로깅 Agent가 세션 단위로 기록
+
+## 아키텍처
+
+```
+[Frontend]  대화 · 계획 관리 · 실행 로그 화면
+     │ REST
+[Backend: FastAPI]
+     ├─ Main Agent (LangGraph)  analyze → plan → execute → judge ⇄ replan → respond
+     │      └─ Tools: search_campsites · get_route · get_weather · search_chargers
+     ├─ EventBus ──▶ Logging Agent (LLM 미사용) ──▶ run_events
+     └─ SQLite: plans · run_events
+```
+
+## 기술 스택
+
+Python 3.10+ · LangGraph · LangChain · FastAPI · SQLite · Vue.js (예정)
+
+## 외부 데이터 출처
+
+| 데이터 | 출처 | 이용 조건 |
+|---|---|---|
+| 캠핑장 정보 | 한국관광공사 고캠핑 정보 조회서비스 (공공데이터포털) | 공공데이터포털 이용약관 · 개발계정 트래픽 |
+| 전기차 충전소 위치 · 상태 | 한국환경공단 전기자동차 충전소 정보 (공공데이터포털) | 공공데이터포털 이용약관 · 개발계정 트래픽 |
+| 기온 · 강수 예보 | [Open-Meteo](https://open-meteo.com/) | 비상업 무료, 일 10,000회 미만, CC BY 4.0 |
+| 주소 검색 · 자동차 길찾기 | 카카오 로컬 API · 카카오모빌리티 길찾기 API | 각 서비스 무료 쿼터 |
+
+Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0)
+
+## 시작하기
+
+```bash
+cd backend
+python -m venv .venv
+# Windows: .venv\Scripts\activate   /   macOS·Linux: source .venv/bin/activate
+pip install -r requirements.txt
+
+cp .env.example .env     # 키 입력 (Windows: copy .env.example .env)
+python scripts/check_apis.py   # 외부 API · LLM 연결 확인
+```
+
+### 필요한 키
+
+| 환경변수 | 발급처 |
+|---|---|
+| `DATA_GO_KR_SERVICE_KEY` | 공공데이터포털 — 고캠핑 · 전기자동차 충전소 정보 활용신청 후 일반 인증키(Decoding) |
+| `KAKAO_REST_API_KEY` | 카카오 디벨로퍼스 — 앱 생성 → 카카오맵 활성화 → REST API 키 |
+| `OPENAI_API_KEY`, `LLM_MODEL` | OpenAI (또는 호환 엔드포인트 + `OPENAI_BASE_URL`) |
+
+## 진행 상황
+
+- [x] 외부 API 연결 확인 스크립트
+- [ ] Tool 4종 + 공통 응답 · 실패 코드
+- [ ] Agent 실행 흐름 · 재계획 · 대화 맥락
+- [ ] 이벤트 발행 · 로깅 Agent
+- [ ] FastAPI 백엔드
+- [ ] 프론트엔드
+
+## 안내
+
+잔량 · 소비량은 입력값과 예보로 계산한 추정치입니다. 실제 사용 시에는 차량 표시값을 확인하고, V2L 사용 한도와 안전 수칙은 차량 사용설명서를 따르세요.
