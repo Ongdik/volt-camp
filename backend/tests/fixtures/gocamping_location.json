@@ -1,0 +1,167 @@
+{
+ "response": {
+  "header": {
+   "resultCode": "0000",
+   "resultMsg": "OK"
+  },
+  "body": {
+   "items": {
+    "item": [
+     {
+      "contentId": "100361",
+      "facltNm": "펫밀리 캠프 온",
+      "lineIntro": "수도권40분거리 애견전용캠핑장",
+      "induty": "일반야영장",
+      "sbrsCl": "전기,무선인터넷,장작판매,온수,물놀이장,산책로,마트.편의점",
+      "addr1": "경기도 가평군 청평면 북한강로 2060",
+      "doNm": "경기도",
+      "sigunguNm": "가평군",
+      "mapX": "127.394841440619",
+      "mapY": "37.6999472988293",
+      "tel": "010-7332-0253",
+      "homepage": "https://petmilly.campingt.me/3593/home/index",
+      "resveUrl": "https://search.naver.com/search.naver?where=nexearch&sm=top_sly.hst&fbm=0&acr=2&ie=utf8&query=%ED%8E%AB%EB%B0%80%EB%A6%AC%EC%95%A0%EA%B2%AC%ED%8C%8C%ED%81%AC%ED%83%80%EC%9A%B4"
+     },
+     {
+      "contentId": "2982",
+      "facltNm": "축령산자연휴양림 야영장",
+      "lineIntro": "아름드리 잣나무 숲 자연휴양림 속 야영장",
+      "induty": "일반야영장",
+      "sbrsCl": "온수,물놀이장,놀이터",
+      "addr1": "경기도 남양주시 수동면 축령산로 299 ",
+      "doNm": "경기도",
+      "sigunguNm": "남양주시",
+      "mapX": "127.313253048056",
+      "mapY": "37.7547680401799",
+      "tel": "031-8008-6690",
+      "homepage": "https://foresttrip.go.kr/main.do",
+      "resveUrl": "https://foresttrip.go.kr/main.do"
+     },
+     {
+      "contentId": "8174",
+      "facltNm": "(주)크리스월드더레지던스",
+      "lineIntro": "북한강 수상레저 리조트에서 운영하는 글램핑",
+      "induty": "일반야영장",
+      "sbrsCl": "전기,무선인터넷,장작판매,온수,물놀이장,운동시설",
+      "addr1": "경기도 가평군 가평읍 북한강변로 360-91",
+      "doNm": "경기도",
+      "sigunguNm": "가평군",
+      "mapX": "127.542095970205",
+      "mapY": "37.7608499510818",
+      "tel": "",
+      "homepage": "http://chrisworld.co.kr/",
+      "resveUrl": ""
+     },
+     {
+      "contentId": "102336",
+      "facltNm": "노스센티넬",
+      "lineIntro": "",
+      "induty": "일반야영장",
+      "sbrsCl": "",
+      "addr1": "경기도 가평군 설악면 미사리로645번길 185-164",
+      "doNm": "경기도",
+      "sigunguNm": "가평군",
+      "mapX": "127.516606204805",
+      "mapY": "37.716781532203",
+      "tel": "",
+      "homepage": "",
+      "resveUrl": ""
+     },
+     {
+      "contentId": "102385",
+      "facltNm": "캠프투나잇",
+      "lineIntro": "",
+      "induty": "자동차야영장",
+      "sbrsCl": "",
+      "addr1": "경기도 가평군 조종면 대보간선로 591",
+      "doNm": "경기도",
+      "sigunguNm": "가평군",
+      "mapX": "127.390000443168",
+      "mapY": "37.798090773353",
+      "tel": "",
+      "homepage": "",
+      "resveUrl": ""
+     },
+     {
+      "contentId": "1511",
+      "facltNm": "산으로 캠핑장",
+      "lineIntro": "",
+      "induty": "일반야영장",
+      "sbrsCl": "전기,무선인터넷,장작판매,온수,물놀이장,놀이터,운동시설",
+      "addr1": "강원특별자치도 홍천군 서면 모곡로 365-139",
+      "doNm": "강원특별자치도",
+      "sigunguNm": "홍천군",
+      "mapX": "127.5678493",
+      "mapY": "37.7145801",
+      "tel": "",
+      "homepage": "http://www.mtcampsite.co.kr/default/",
+      "resveUrl": "https://booking.naver.com/booking/3/bizes/438"
+     },
+     {
+      "contentId": "102372",
+      "facltNm": "멍뭉777",
+      "lineIntro": "",
+      "induty": "일반야영장",
+      "sbrsCl": "",
+      "addr1": "경기도 가평군 가평읍 태봉두밀로 249",
+      "doNm": "경기도",
+      "sigunguNm": "가평군",
+      "mapX": "127.467162414127",
+      "mapY": "37.8132384212535",
+      "tel": "",
+      "homepage": "",
+      "resveUrl": ""
+     },
+     {
+      "contentId": "101362",
+      "facltNm": "우니메이카 춘천점",
+      "lineIntro": "조용한 산속 노키즈 2인까지만 예약가능한 전체 개별화장실로 운영",
+      "induty": "일반야영장",
+      "sbrsCl": "전기,무선인터넷,장작판매,온수,산책로",
+      "addr1": "강원특별자치도 춘천시 남산면 서백3길 115",
+      "doNm": "강원특별자치도",
+      "sigunguNm": "춘천시",
+      "mapX": "127.5641105",
+      "mapY": "37.8077416",
+      "tel": "0507-1407-6242",
+      "homepage": "네이버 예약",
+      "resveUrl": "https://map.naver.com/p/entry/place/1306286004?lng"
+     },
+     {
+      "contentId": "102366",
+      "facltNm": "숲결 캠핑장",
+      "lineIntro": "",
+      "induty": "일반야영장",
+      "sbrsCl": "",
+      "addr1": "경기도 가평군 조종면 명지산로 681-1",
+      "doNm": "경기도",
+      "sigunguNm": "가평군",
+      "mapX": "127.395285052882",
+      "mapY": "37.9239510122549",
+      "tel": "",
+      "homepage": "",
+      "resveUrl": ""
+     },
+     {
+      "contentId": "227",
+      "facltNm": "계곡과소나무 캠핑장",
+      "lineIntro": "펜션계의 겨울왕국, 계곡과소나무오토캠핑장",
+      "induty": "일반야영장",
+      "sbrsCl": "전기,장작판매,온수,놀이터,산책로,운동장,운동시설",
+      "addr1": "경기도 포천시 일동면 무리울길 299",
+      "doNm": "경기도",
+      "sigunguNm": "포천시",
+      "mapX": "127.3598873",
+      "mapY": "37.9516198",
+      "tel": "010-4842-2689",
+      "homepage": "http://www.cwpension.net/camping",
+      "resveUrl": ""
+     }
+    ]
+   },
+   "numOfRows": 10,
+   "pageNo": 1,
+   "totalCount": 216
+  }
+ }
+}
