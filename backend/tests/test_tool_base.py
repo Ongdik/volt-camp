@@ -82,3 +82,12 @@ def test_spec_is_openai_function_format():
     params = spec["function"]["parameters"]
     assert params["required"] == ["text"]
     assert set(params["properties"]) == {"text", "times"}
+
+
+def test_relative_paths_resolve_from_backend_dir(monkeypatch, tmp_path):
+    from app.config import BACKEND_DIR, get_settings
+    monkeypatch.setenv("DB_PATH", "./data/x.db")
+    monkeypatch.chdir(tmp_path)                 # 다른 위치에서 실행해도
+    get_settings.cache_clear()
+    assert get_settings().db_path == str((BACKEND_DIR / "data" / "x.db").resolve())
+    get_settings.cache_clear()
