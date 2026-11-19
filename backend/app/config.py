@@ -23,6 +23,15 @@ def _int(name: str, default: int) -> int:
         return default
 
 
+def _path(name: str, default: Path) -> str:
+    """경로 설정값. 상대 경로는 실행 위치가 아니라 backend/ 기준으로 푼다 (스크립트 · 서버가 같은 파일을 쓰도록)."""
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return str(default)
+    p = Path(raw)
+    return str(p if p.is_absolute() else (BACKEND_DIR / p).resolve())
+
+
 @dataclass(frozen=True)
 class Settings:
     data_go_kr_key: str
@@ -51,9 +60,9 @@ def get_settings() -> Settings:
         max_replan=_int("MAX_REPLAN", 3),
         worker_max_retry=_int("WORKER_MAX_RETRY", 1),
         tool_timeout_sec=_int("TOOL_TIMEOUT_SEC", 10),
-        db_path=os.getenv("DB_PATH", str(BACKEND_DIR / "data" / "app.db")),
+        db_path=_path("DB_PATH", BACKEND_DIR / "data" / "app.db") if os.getenv("DB_PATH") != ":memory:" else ":memory:",
         calendar_provider=os.getenv("CALENDAR_PROVIDER", "local").strip().lower() or "local",
         google_calendar_id=os.getenv("GOOGLE_CALENDAR_ID", "primary").strip() or "primary",
-        google_client_secret_file=os.getenv("GOOGLE_CLIENT_SECRET_FILE", str(BACKEND_DIR / "data" / "google_client_secret.json")),
-        google_token_file=os.getenv("GOOGLE_TOKEN_FILE", str(BACKEND_DIR / "data" / "google_token.json")),
+        google_client_secret_file=_path("GOOGLE_CLIENT_SECRET_FILE", BACKEND_DIR / "data" / "google_client_secret.json"),
+        google_token_file=_path("GOOGLE_TOKEN_FILE", BACKEND_DIR / "data" / "google_token.json"),
     )
