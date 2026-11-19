@@ -34,6 +34,10 @@ class Settings:
     worker_max_retry: int
     tool_timeout_sec: int
     db_path: str
+    calendar_provider: str = "local"      # local | google
+    google_calendar_id: str = "primary"
+    google_client_secret_file: str = ""
+    google_token_file: str = ""
 
 
 @lru_cache
@@ -48,4 +52,8 @@ def get_settings() -> Settings:
         worker_max_retry=_int("WORKER_MAX_RETRY", 1),
         tool_timeout_sec=_int("TOOL_TIMEOUT_SEC", 10),
         db_path=os.getenv("DB_PATH", str(BACKEND_DIR / "data" / "app.db")),
+        calendar_provider=os.getenv("CALENDAR_PROVIDER", "local").strip().lower() or "local",
+        google_calendar_id=os.getenv("GOOGLE_CALENDAR_ID", "primary").strip() or "primary",
+        google_client_secret_file=os.getenv("GOOGLE_CLIENT_SECRET_FILE", str(BACKEND_DIR / "data" / "google_client_secret.json")),
+        google_token_file=os.getenv("GOOGLE_TOKEN_FILE", str(BACKEND_DIR / "data" / "google_token.json")),
     )
