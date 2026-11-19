@@ -86,11 +86,33 @@ def test_s2_latest_arrival_is_back_calculated():
     assert cs["latest_arrival"] == "16:03"
 
 
+# 모자란 양(≈10.7kWh)이 캠핑 중 히터 소비(≈11kWh) 이하 → 전기 사이트로 풀 수 있는 조건
+CAMP_HEAVY = trip(soc_start_pct=60, min_return_pct=15, devices=[{"name": "전기히터", "hours": 10}])
+
+
 def test_charging_refused_skips_charge_strategy():
+    world = World(campsites=[camp("c1", "A캠핑", None)], electric_sites=[camp("e1", "전기캠핑", True)])
+    agent, _ = make_agent(world, {"m": {**CAMP_HEAVY, "allow_charging": False}})
+    r = agent.run("m")
+    assert [p["strategy"] for p in r["replans"]] == ["USE_ELECTRIC_SITE"]
+    assert r["status"] == "OK" and r["recommendations"][0]["campsite"]["name"] == "전기캠핑"
+    assert "search_chargers" not in tools_called(world)
+
+
+def test_useless_strategies_are_skipped():
+    # 주행만으로도 부족(모자란 31kWh > 캠핑 소비) → 전기 사이트로 바꿔도 소용없어 건너뛴다
     world = World(campsites=[camp("c1", "A캠핑", None)], electric_sites=[camp("e1", "전기캠핑", True)])
     agent, _ = make_agent(world, {"m": {**ENERGY_SHORT, "allow_charging": False}})
     r = agent.run("m")
-    assert r["replans"][0]["strategy"] == "USE_ELECTRIC_SITE"
+    assert "USE_ELECTRIC_SITE" not in [p["strategy"] for p in r["replans"]]
+
+
+def test_unreachable_charger_is_not_used():
+    # 충전 없이 도착 잔량이 5% 미만 → 캠핑장 근처 충전소까지도 못 간다 → 충전 경유 전략을 쓰지 않는다
+    world = World(campsites=[camp("c1", "A캠핑", None)], distance_km=110)
+    agent, _ = make_agent(world, {"m": trip(soc_start_pct=30, min_return_pct=20)})
+    r = agent.run("m")
+    assert "ADD_CHARGE_STOP" not in [p["strategy"] for p in r["replans"]]
     assert "search_chargers" not in tools_called(world)
 
 
@@ -112,9 +134,10 @@ def test_s3_rain_switches_to_electric_site():
 # ---------------------------------------------------------------- S4 재계획 상한
 
 def test_s4_stops_at_replan_limit():
-    world = World(campsites=[camp("c1", "A캠핑", None)], electric_sites=[camp("e1", "전기캠핑", True)])
-    agent, _ = make_agent(world, {"m": trip(soc_start_pct=25, min_return_pct=50,
-                                            devices=[{"name": "전기히터", "hours": 10}])})
+    # 세 전략 모두 시도할 만하지만(충전소 도달 가능 · 전기 사이트로 풀 수 있는 양) 결과가 없어 상한까지
+    world = World(campsites=[camp("c1", "A캠핑", None)], electric_sites=[], wide_sites=[camp("w1", "W캠핑", None)],
+                  stations=[])
+    agent, _ = make_agent(world, {"m": CAMP_HEAVY})
     r = agent.run("m")
 
     assert r["status"] == "LIMIT_REACHED"
