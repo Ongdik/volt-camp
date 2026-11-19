@@ -148,7 +148,8 @@ function bindSave(el, r) {
   };
 }
 
-const TOOL_NAMES = { search_campsites: "캠핑장", get_route: "길찾기", get_weather: "날씨", search_chargers: "충전소" };
+const TOOL_NAMES = { search_campsites: "캠핑장", get_route: "길찾기", get_weather: "날씨", search_chargers: "충전소",
+                     list_schedule: "캘린더", register_plan_to_calendar: "캘린더 등록" };
 const toolName = (t) => TOOL_NAMES[t] || t;
 const NODE_NAMES = { analyze: "요청 분석", plan: "계획 수립", execute: "Tool 실행", judge: "제약 판단", replan: "재계획", respond: "응답 생성" };
 

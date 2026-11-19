@@ -129,6 +129,11 @@ class PlannerAgent:
         if not result["ok"]:
             return result["error"]["message"]
         d = result["data"]
+        if "events" in d:          # list_schedule
+            titles = ", ".join(e["title"] for e in d["events"][:2])
+            return f"일정 {d['count']}건" + (f" ({titles})" if titles else "")
+        if "event" in d:           # register_plan_to_calendar
+            return ("이미 등록됨: " if d["already_registered"] else "등록: ") + d["event"]["title"]
         if "candidates" in d:
             return f"캠핑장 {len(d['candidates'])}곳"
         if "distance_km" in d:
