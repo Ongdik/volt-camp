@@ -72,6 +72,7 @@ details { margin-top: 8px; font-size: 13px; } summary { cursor: pointer; color: 
 .ev.llm .body::before { content: "🧠 "; }
 .ev.fail { color: var(--bad); }
 .replan-mark { margin: 8px 0; padding: 6px 10px; border-radius: 8px; background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+.turn-mark { margin: 14px 0 6px; padding-top: 8px; border-top: 1px dashed var(--line, #d0d7de); color: var(--muted, #666); font-size: 12px; font-weight: 700; }
 .chip { font-family: var(--mono); font-size: 11px; padding: 0 6px; border-radius: 99px; background: #eef1ec; margin-left: 4px; }
 
 /* 목록 화면 */
