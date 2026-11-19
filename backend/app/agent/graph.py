@@ -38,6 +38,7 @@ DEFAULT_RADIUS_KM = 10
 MAX_RADIUS_KM = 20
 CANDIDATES_TO_CHECK = 5
 CHARGE_SOC_CAP = 0.80          # 급속충전은 80% 이후 급격히 느려져 그 위로는 계획하지 않는다
+MIN_SOC_AT_CHARGER = 0.05      # 충전소에 이 잔량도 없이 도착한다면 갈 수 없는 충전소로 본다
 DEFAULT_DEPART = "10:00"
 DEFAULT_RETURN = "14:00"
 
@@ -46,6 +47,18 @@ Geocoder = Callable[[str], Any]
 
 def _emitter(config: RunnableConfig) -> RunEmitter:
     return config["configurable"]["emitter"]
+
+
+def _charge_can_help(e: dict[str, Any]) -> bool:
+    """캠핑장 근처 충전소까지는 갈 수 있는가 (충전 없이 도착 잔량이 하한 이상)."""
+    return (e["metrics"].get("soc") or {}).get("arrive", -1) >= MIN_SOC_AT_CHARGER
+
+
+def _electric_can_help(e: dict[str, Any]) -> bool:
+    """전기 사이트로 바꾸면 풀리는가: 비 때문이거나, 모자란 양이 캠핑 중 배터리 소비 이하일 때만."""
+    if "RAIN" in e["failed"]:
+        return True
+    return "ENERGY" in e["failed"] and e["metrics"].get("e_camp_kwh", 0) >= e["deficit_kwh"] > 0
 
 
 def _ok(result: dict[str, Any] | None) -> bool:
@@ -327,6 +340,10 @@ class PlannerAgent:
                                         cand["has_electric"], return_distance_km=route["data"]["distance_km"],
                                         charge_after_km=to_charger_km)
                 soc_at = probe.metrics["soc"]["at_charger"]
+                if soc_at < MIN_SOC_AT_CHARGER:
+                    ev.reasons.append(f"충전소({station['name']})에 도착할 때 잔량이 {soc_at:.0%}라 갈 수 없어 충전 경유를 쓰지 않았습니다")
+                    evaluations.append({**base, **ev.model_dump(), "charge_stop": None})
+                    continue
                 room = max((CHARGE_SOC_CAP - soc_at) * vehicle.capacity_kwh, 0)
                 charge_kwh = round(min(probe.deficit_kwh + 2.0, room), 1)
                 ev = energy.evaluate(vehicle, devices, via["data"]["distance_km"], weather_summary,
@@ -391,11 +408,12 @@ class PlannerAgent:
         last = searches[-1]["args"] if searches else {}
         if evals and failed == {"POWER"}:
             return None, "출력 초과는 다른 캠핑장 · 충전소로 해결되지 않음"
-        energy_only = [e for e in evals if e["failed"] == ["ENERGY"] and not e["charge_stop"]]
+        energy_only = [e for e in evals if e["failed"] == ["ENERGY"] and not e["charge_stop"] and _charge_can_help(e)]
         if energy_only and c.allow_charging is not False and "ADD_CHARGE_STOP" not in used:
             return "ADD_CHARGE_STOP", "배터리만 모자란 후보가 있어 가는 길 충전을 넣어 본다"
-        if failed & {"RAIN", "ENERGY"} and not last.get("require_electric") and "USE_ELECTRIC_SITE" not in used:
-            return "USE_ELECTRIC_SITE", "비 · 배터리 문제를 전기 사이트(캠핑장 전기)로 피해 본다"
+        if any(_electric_can_help(e) for e in evals) and not last.get("require_electric") \
+                and "USE_ELECTRIC_SITE" not in used:
+            return "USE_ELECTRIC_SITE", "비 · 캠핑 중 소비 문제를 전기 사이트(캠핑장 전기)로 피해 본다"
         if last.get("radius_km", MAX_RADIUS_KM) < MAX_RADIUS_KM and "EXPAND_RADIUS" not in used:
             return "EXPAND_RADIUS", f"탐색 반경을 {MAX_RADIUS_KM}km로 넓혀 본다"
         return None, "남은 재계획 전략 없음"
@@ -413,7 +431,8 @@ class PlannerAgent:
         searches = [s for s in plan if s["tool"] == "search_campsites"]
         last = dict(searches[-1]["args"])
         if strategy == "ADD_CHARGE_STOP":
-            targets = sorted((e for e in state["evaluations"] if e["failed"] == ["ENERGY"] and not e["charge_stop"]),
+            targets = sorted((e for e in state["evaluations"] if e["failed"] == ["ENERGY"] and not e["charge_stop"]
+                              and _charge_can_help(e)),
                              key=lambda e: e["deficit_kwh"])[:2]
             for e in targets:
                 cand = e["campsite"]
@@ -554,9 +573,11 @@ class PlannerAgent:
         if energy_fail and c.devices:
             devices = [make_device(d.name, d.hours, d.power_w) for d in c.devices]
             s = energy.reduce_hours_suggestion(devices, energy_fail[0]["deficit_kwh"])
-            if s:
+            if s and s["to_hours"] > 0:
                 tips.append(f"{s['device']} 사용을 {s['from_hours']}시간 → {s['to_hours']}시간으로 줄이면 "
                             f"{energy_fail[0]['campsite']['name']}은(는) 조건을 맞출 수 있어요")
+            elif s:
+                tips.append(f"{s['device']}을(를) 쓰지 않으면 {energy_fail[0]['campsite']['name']}은(는) 조건을 맞출 수 있어요")
             tips.append("출발 전에 충전해서 잔량을 높이거나, 귀가 최소 잔량을 낮출 수 있는지 알려주세요")
         if any("POWER" in e["failed"] for e in evals):
             tips.append("출력이 큰 기기(히터 · 포트 · 인덕션)를 동시에 켜지 않도록 나눠 쓰면 출력 제한을 넘지 않아요")
