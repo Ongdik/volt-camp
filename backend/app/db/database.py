@@ -52,6 +52,17 @@ CREATE TABLE IF NOT EXISTS anomalies (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_anomalies_session ON anomalies(session_id, id);
+
+CREATE TABLE IF NOT EXISTS calendar_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    start_at TEXT NOT NULL,
+    end_at TEXT NOT NULL,
+    plan_id INTEGER UNIQUE,
+    description TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_calendar_period ON calendar_events(start_at, end_at);
 """
 
 

@@ -27,3 +27,7 @@ dist/
 
 # 외부 공유 금지 문서
 *.pdf
+
+# Google OAuth 키 · 토큰
+*client_secret*.json
+*google_token*.json
