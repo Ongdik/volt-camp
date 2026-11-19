@@ -65,6 +65,7 @@ class PlannerAgent:
         self.max_replan = max_replan
         self.today = today or (lambda: datetime.now(KST).date())
         self.warning_lookup: Callable[[str], dict[str, Any] | None] | None = None   # 로깅 Agent의 이상 징후 판정
+        self.plan_lookup: Callable[[str], dict[str, Any] | None] | None = None      # 이 대화에서 마지막으로 저장한 계획
         self.graph = self._build()
 
     # ------------------------------------------------------------------ 공통
@@ -151,6 +152,8 @@ class PlannerAgent:
         update["intent"] = intent
         if intent in ("CHITCHAT", "CONFIRM_PLAN"):
             return update
+        if intent == "REGISTER_CALENDAR":
+            return {**update, **self._register_target(state["session_id"], analysis.plan_id)}
 
         missing = conditions.missing_for_plan() if intent == "PLAN_TRIP" else (
             [] if (conditions.region or conditions.origin) else ["어느 지역인지"])
@@ -174,13 +177,32 @@ class PlannerAgent:
                 return {**update, "status": "NEED_INFO", "missing": [f"'{text}'의 정확한 위치 (주소나 다른 지명)"]}
         return {**update, "places": places}
 
+    def _register_target(self, session_id: str, plan_id: int | None) -> dict[str, Any]:
+        """등록할 계획 번호: 사용자가 말한 번호, 없으면 이 대화에서 마지막으로 저장한 계획. 제목 · 시각은 Tool이 저장소에서 읽는다."""
+        if "register_plan_to_calendar" not in self.registry:
+            return {"status": "ERROR", "stop_reason": "NOT_SUPPORTED", "answer": "캘린더 연동이 설정되지 않았어요."}
+        if plan_id is None and self.plan_lookup is not None:
+            latest = self.plan_lookup(session_id)
+            plan_id = latest["id"] if latest else None
+        if plan_id is None:
+            return {"status": "NEED_INFO", "missing": ["캘린더에 등록할 계획 (먼저 계획을 저장하거나 계획 번호를 알려주세요)"]}
+        return {"register_plan_id": plan_id, "places": {}}
+
     # ------------------------------------------------------------------ plan
 
     def plan(self, state: AgentState, em: RunEmitter) -> dict[str, Any]:
         c: Conditions = state["conditions"]
+        steps: list[dict[str, Any]] = []
+        if state["intent"] == "REGISTER_CALENDAR":
+            pid = state["register_plan_id"]
+            steps.append({"step_id": "s1", "tool": "register_plan_to_calendar", "purpose": f"계획 {pid}번 캘린더 등록",
+                          "args": {"plan_id": pid}, "fixed": ["plan_id"]})
+            em.emit(EventType.LLM_DECISION, node="plan", kind="plan", decision=["register_plan_to_calendar"],
+                    reason=f"계획 {pid}번만 넘기고 제목 · 시각은 저장소에서 읽어 등록", by="rule")
+            return {"plan": steps, "executed": [], "results": {}, "replan_count": 0, "strategies_used": [],
+                    "replans": []}
         center = state["places"].get("region") or state["places"].get("origin")
         at = {"lat": center["lat"], "lon": center["lon"]}
-        steps: list[dict[str, Any]] = []
         if state["intent"] == "PLAN_TRIP":
             steps.append({"step_id": "s1", "tool": "search_campsites", "purpose": "캠핑장 후보",
                           "args": {**at, "radius_km": DEFAULT_RADIUS_KM, "require_electric": bool(c.prefer_electric),
@@ -190,6 +212,11 @@ class PlannerAgent:
                           "args": {**at, "start_date": c.start_date.isoformat(), "end_date": c.end_date.isoformat()},
                           "fixed": ["start_date", "end_date"]})
             reason = "캠핑장을 정하지 않아 후보 조회 → 후보별 길찾기 → 지역 날씨 순으로 계획"
+            if "list_schedule" in self.registry:
+                start_at, end_at = self._trip_window(c)
+                steps.append({"step_id": "s3", "tool": "list_schedule", "purpose": "차박 기간 다른 일정",
+                              "args": {"start_at": start_at, "end_at": end_at}, "fixed": ["start_at", "end_at"]})
+                reason += ", 차박 기간 캘린더 일정도 확인"
         else:
             target = state.get("fact_target") or "campsites"
             start = c.start_date or self.today()
@@ -319,11 +346,32 @@ class PlannerAgent:
                     ev.reasons.append(f"충전소에서 {CHARGE_SOC_CAP:.0%}까지 충전해도 {probe.deficit_kwh}kWh가 모자랍니다")
             evaluations.append({**base, **ev.model_dump(), "charge_stop": charge_stop})
 
+        self._apply_schedule(results.get("s3"), evaluations)
         em.emit(EventType.JUDGE_RESULT, node="judge", results=[
             {"campsite": e["campsite"]["name"], "status": e["status"], "failed": e["failed"],
              "soc": e["metrics"].get("soc"), "deficit_kwh": e["deficit_kwh"],
              "charge_stop": (e["charge_stop"] or {}).get("station", {}).get("name")} for e in evaluations])
         return {"evaluations": evaluations}
+
+    @staticmethod
+    def _apply_schedule(schedule: dict[str, Any] | None, evaluations: list[dict[str, Any]]) -> None:
+        """캘린더 일정 제약(SCHEDULE). 겹치면 모든 후보가 실패, 조회 실패면 '판단 불가'(이상 없음이 아님)."""
+        if schedule is None:
+            return
+        if not schedule["ok"]:
+            for e in evaluations:
+                e["unjudged"] = [*e["unjudged"], "SCHEDULE"]
+                e["reasons"] = [*e["reasons"], f"캘린더를 확인하지 못해 일정 겹침은 판단하지 못했습니다 ({schedule['error']['message']})"]
+            return
+        events = schedule["data"]["events"]
+        if not events:
+            return
+        why = ", ".join(f"'{ev['title']}'({ev['start_at'].replace('T', ' ')}~{ev['end_at'].replace('T', ' ')})"
+                        for ev in events)
+        for e in evaluations:
+            e["failed"] = [*e["failed"], "SCHEDULE"]
+            e["reasons"] = [*e["reasons"], f"차박 기간에 캘린더 일정 {why}이(가) 있습니다"]
+            e["status"] = "FAIL"
 
     # ------------------------------------------------------------------ replan
 
@@ -336,6 +384,8 @@ class PlannerAgent:
         if s1 and not s1["ok"] and s1["error"]["code"] in {c.value for c in FATAL_CODES}:
             return None, f"재시도해도 같은 실패: {s1['error']['code']}"
         failed = {f for e in evals for f in e["failed"]}
+        if evals and all("SCHEDULE" in e["failed"] for e in evals):
+            return None, "캘린더 일정과 겹쳐 캠핑장 · 충전소를 바꿔도 해결되지 않음"
         c: Conditions = state["conditions"]
         searches = [s for s in state["plan"] if s["tool"] == "search_campsites"]
         last = searches[-1]["args"] if searches else {}
@@ -406,6 +456,8 @@ class PlannerAgent:
                         "output": out}
             return {"status": "OK", "answer": "추천한 계획을 저장할게요.",
                     "output": {**out, "action": "SAVE_PLAN", "plan_draft": mem.plan_draft}}
+        if intent == "REGISTER_CALENDAR":
+            return self._respond_register(state, out)
         if intent == "CHITCHAT":
             return {"status": "OK", "answer": self._write("chat", {"message": state["message"]},
                                                           "안녕하세요! 출발 날짜 · 출발지 · 캠핑 지역 · 배터리 용량과 잔량 · "
@@ -419,6 +471,20 @@ class PlannerAgent:
             return {"status": "OK" if r["ok"] else "PARTIAL", "answer": self._write("fact", ctx, fallback),
                     "output": {**out, "fact": ctx}}
         return self._respond_plan(state, out, mem)
+
+    @staticmethod
+    def _respond_register(state: AgentState, out: dict[str, Any]) -> dict[str, Any]:
+        """등록 결과는 저장소 · 캘린더가 돌려준 값만 쓰는 정해진 문장 (LLM 없음)."""
+        r = state["results"].get("s1")
+        if not r["ok"]:
+            return {"status": "ERROR", "answer": f"캘린더에 등록하지 못했어요. {r['error']['message']}",
+                    "output": {**out, "error_code": r["error"]["code"]}}
+        ev = r["data"]["event"]
+        when = f"{ev['start_at'].replace('T', ' ')} ~ {ev['end_at'].replace('T', ' ')}"
+        head = "이미 캘린더에 등록된 계획이에요" if r["data"]["already_registered"] else "캘린더에 등록했어요"
+        provider = {"local": "VoltCamp 캘린더", "google": "Google 캘린더"}.get(r["data"]["provider"], r["data"]["provider"])
+        answer = f"{head}.\n- 일정: {ev['title']}\n- 기간: {when}\n- 캘린더: {provider} (계획 {r['data']['plan_id']}번)"
+        return {"status": "OK", "answer": answer, "output": {**out, "calendar": r["data"]}}
 
     def _respond_plan(self, state: AgentState, out: dict[str, Any], mem) -> dict[str, Any]:
         c: Conditions = state["conditions"]
@@ -496,19 +562,27 @@ class PlannerAgent:
             tips.append("출력이 큰 기기(히터 · 포트 · 인덕션)를 동시에 켜지 않도록 나눠 쓰면 출력 제한을 넘지 않아요")
         if any("RAIN" in e["failed"] for e in evals):
             tips.append("비 예보가 있는 날은 전기 사이트가 있는 캠핑장을 고르거나 날짜를 바꿔 보세요")
+        if any("SCHEDULE" in e["failed"] for e in evals):
+            tips.append("캘린더 일정과 겹치지 않는 날짜를 알려주시면 다시 계산해 드릴게요")
         if not evals:
             tips.append("다른 지역이나 더 넓은 범위를 알려주시면 다시 찾아볼게요")
         return tips
 
     @staticmethod
-    def _draft(c: Conditions, best: dict[str, Any]) -> dict[str, Any]:
-        cand = best["campsite"]
+    def _trip_window(c: Conditions) -> tuple[str, str]:
+        """출발(기본 10:00) ~ 귀가(기본 14:00). 저장하는 계획과 같은 구간이라 일정 겹침 판단 기준이 같다."""
         start = datetime.combine(c.start_date, datetime.strptime(DEFAULT_DEPART, "%H:%M").time())
         end = datetime.combine(c.end_date, datetime.strptime(DEFAULT_RETURN, "%H:%M").time())
+        return start.isoformat(timespec="minutes"), end.isoformat(timespec="minutes")
+
+    @classmethod
+    def _draft(cls, c: Conditions, best: dict[str, Any]) -> dict[str, Any]:
+        cand = best["campsite"]
+        start_at, end_at = cls._trip_window(c)
         return {
             "title": f"{cand['name']} 차박",
             "campsite": {k: cand[k] for k in ("campsite_id", "name", "address", "lat", "lon", "has_electric")},
-            "origin": c.origin, "start_at": start.isoformat(timespec="minutes"), "end_at": end.isoformat(timespec="minutes"),
+            "origin": c.origin, "start_at": start_at, "end_at": end_at,
             "vehicle": {"capacity_kwh": c.capacity_kwh, "soc_start_pct": c.soc_start_pct,
                         "efficiency_km_per_kwh": c.efficiency_km_per_kwh or 5.0,
                         "min_return_pct": c.min_return_pct if c.min_return_pct is not None else 20},

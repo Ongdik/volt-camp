@@ -7,7 +7,7 @@ from typing import Any, Literal, TypedDict
 
 from pydantic import BaseModel, Field
 
-Intent = Literal["PLAN_TRIP", "FACT_QUERY", "MODIFY", "CONFIRM_PLAN", "CHITCHAT"]
+Intent = Literal["PLAN_TRIP", "FACT_QUERY", "MODIFY", "CONFIRM_PLAN", "REGISTER_CALENDAR", "CHITCHAT"]
 FactTarget = Literal["campsites", "chargers", "weather"]
 
 
@@ -21,7 +21,8 @@ class Analysis(BaseModel):
     """LLM이 사용자 메시지에서 뽑는 값. 말하지 않은 값은 null로 둔다 (추측 금지)."""
 
     intent: Intent = Field(description="PLAN_TRIP 차박 계획 / FACT_QUERY 사실 조회 / MODIFY 직전 조건 일부 변경 / "
-                                       "CONFIRM_PLAN 직전 추천 저장 · 확정 / CHITCHAT 인사 · 사용법 · 그 밖의 대화")
+                                       "CONFIRM_PLAN 직전 추천 저장 · 확정 / REGISTER_CALENDAR 저장한 계획을 캘린더에 등록 / "
+                                       "CHITCHAT 인사 · 사용법 · 그 밖의 대화")
     intent_reason: str = Field(description="그 의도로 본 이유 한 문장")
     start_date: date | None = Field(default=None, description="출발 날짜 (상대 표현은 오늘 기준으로 계산)")
     nights: int | None = Field(default=None, ge=1, le=7, description="박 수")
@@ -38,6 +39,7 @@ class Analysis(BaseModel):
     allow_charging: bool | None = Field(default=None, description="가는 길 충전을 허용하는지 (거부하면 false)")
     fast_only: bool | None = Field(default=None, description="급속 충전기만 원하는지")
     fact_target: FactTarget | None = Field(default=None, description="FACT_QUERY일 때 무엇을 묻는지")
+    plan_id: int | None = Field(default=None, description="REGISTER_CALENDAR에서 사용자가 계획 번호를 말한 경우만")
 
 
 class Conditions(BaseModel):
@@ -125,3 +127,4 @@ class AgentState(TypedDict, total=False):
     answer: str
     output: dict[str, Any]
     cache_ref: dict[str, Any]                # 한 턴 안의 Tool 결과 캐시 (재계획 때 재사용)
+    register_plan_id: int                    # REGISTER_CALENDAR: 등록할 계획 번호 (저장소에서 찾은 값)
