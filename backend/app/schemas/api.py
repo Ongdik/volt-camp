@@ -42,6 +42,7 @@ class ChatResponse(BaseModel):
     plan_draft: dict[str, Any] | None = None
     action: str | None = None
     saved_plan: dict[str, Any] | None = None
+    calendar: dict[str, Any] | None = Field(default=None, description="캘린더 등록 결과 (REGISTER_CALENDAR)")
     overlaps: list[dict[str, Any]] = []
     error_code: str | None = None
     previous_warning: dict[str, Any] | None = Field(default=None, description="같은 세션 직전 턴의 이상 징후 판정")
@@ -61,6 +62,7 @@ class PlanCreate(BaseModel):
     expected_soc: dict[str, Any] | None = None
     evidence: dict[str, Any] | None = None
     memo: str = Field(default="", max_length=500)
+    session_id: str | None = Field(default=None, max_length=64, description="이 계획을 만든 대화 (캘린더 등록 대상 찾기)")
 
 
 class PlanUpdate(BaseModel):

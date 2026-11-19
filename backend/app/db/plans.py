@@ -60,6 +60,12 @@ class PlanRepository:
             plan_id = cur.lastrowid
         return self.get(plan_id), overlaps
 
+    def latest_for_session(self, session_id: str) -> dict[str, Any] | None:
+        """이 대화에서 마지막으로 저장한 계획 (캘린더 등록 대상)."""
+        with self.db.tx() as c:
+            row = c.execute("SELECT * FROM plans WHERE session_id = ? ORDER BY id DESC LIMIT 1", (session_id,)).fetchone()
+        return self._row(row) if row else None
+
     def list(self) -> list[dict[str, Any]]:
         with self.db.tx() as c:
             rows = c.execute("SELECT * FROM plans ORDER BY start_at, id").fetchall()

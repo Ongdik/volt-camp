@@ -107,3 +107,18 @@ def test_anomalies_api(client):
     client.post("/api/chat", json={"message": "계획", "session_id": "A1"})
     [a] = client.get("/api/logs/A1/anomalies").json()
     assert a["verdict"] == "OK" and a["diagnosis_status"] == "NONE"
+
+
+def test_calendar_register_and_list_via_api(client):
+    pid = client.post("/api/plans", json={**draft(), "session_id": "S9"}).json()["plan"]["id"]
+    assert client.get(f"/api/plans/{pid}/calendar").json()["registered"] is False
+    reg = client.post(f"/api/plans/{pid}/calendar").json()
+    assert reg["provider"] == "local" and reg["event"]["title"] == "가평 차박" and reg["already_registered"] is False
+    assert client.post(f"/api/plans/{pid}/calendar").json()["already_registered"] is True
+    status = client.get(f"/api/plans/{pid}/calendar").json()
+    assert status["registered"] is True and status["event"]["plan_id"] == pid
+    events = client.get("/api/calendar/events", params={"start_at": "2026-11-19T00:00", "end_at": "2026-11-21T00:00"})
+    assert events.json()["count"] == 1
+    assert client.post("/api/plans/999/calendar").status_code == 404
+    bad = client.get("/api/calendar/events", params={"start_at": "2026-11-21T00:00", "end_at": "2026-11-19T00:00"})
+    assert bad.status_code == 422 and bad.json()["error"]["code"] == "INVALID_INPUT"

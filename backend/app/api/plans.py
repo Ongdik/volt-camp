@@ -23,9 +23,9 @@ def list_plans(plans: PlanRepository = Depends(deps.plans)) -> list[dict]:
 
 @router.post("", response_model=PlanResult, status_code=201, summary="계획 저장")
 def create_plan(body: PlanCreate, plans: PlanRepository = Depends(deps.plans)) -> PlanResult:
-    data = body.model_dump()
+    data = body.model_dump(exclude={"session_id"})
     data["start_at"], data["end_at"] = iso(body.start_at), iso(body.end_at)
-    plan, overlaps = plans.create(data)
+    plan, overlaps = plans.create(data, session_id=body.session_id)
     return PlanResult(plan=plan, overlaps=overlaps)
 
 
