@@ -6,6 +6,7 @@ const EXAMPLES = [
   "내일 서울시청에서 가평으로 1박 차박 가. 77.4kWh에 지금 80%, 전기장판 밤새 쓰고 귀가할 때 30%는 남겨야 해",
   "내일 서울시청에서 가평 1박, 77.4kWh 45%, 전기히터 6시간이랑 전기장판 8시간, 귀가 30%, 17시까지 도착",
   "가평 근처 급속 충전기 지금 비어 있어?",
+  "방금 저장한 계획 캘린더에 등록해줘",
   "V2L이 뭐야?",
 ];
 
@@ -89,6 +90,11 @@ function renderAnswer(r) {
   }
   if (r.suggestions?.length) html += `<div class="card"><b>이렇게 바꿔 보세요</b><ul>${r.suggestions.map((s) => `<li>${esc(s)}</li>`).join("")}</ul></div>`;
   if (r.assumptions?.length) html += `<details><summary>계산에 쓴 가정 ${r.assumptions.length}개</summary><ul>${r.assumptions.map((a) => `<li>${esc(a)}</li>`).join("")}</ul></details>`;
+  if (r.calendar) {
+    const ev = r.calendar.event;
+    html += `<div class="card"><h4>📅 ${esc(ev.title)} ${r.calendar.already_registered ? '<span class="tag info">이미 등록됨</span>' : '<span class="tag ok">등록 완료</span>'}</h4>`
+      + `<div class="sub">${fmtDate(ev.start_at)} ~ ${fmtDate(ev.end_at)} · ${r.calendar.provider === "google" ? "Google 캘린더" : "VoltCamp 캘린더"} · 계획 ${r.calendar.plan_id}번</div></div>`;
+  }
   if (r.plan_draft && !r.saved_plan) html += `<div class="actions"><button class="primary save-plan">이 계획 저장</button></div>`;
   (r.notices || []).forEach((n) => { html += `<div class="notice">⚠️ ${esc(n)}</div>`; });
   if (r.previous_warning) {
@@ -105,7 +111,8 @@ function recCard(rec, best) {
   const pos = (v) => Math.max(0, Math.min(100, v * 100));
   const electric = c.has_electric === true ? '<span class="tag ok">전기 사이트</span>'
     : c.has_electric === null ? '<span class="tag warn">전기 정보 없음</span>' : "";
-  const unjudged = rec.unjudged?.includes("RAIN") ? '<span class="tag warn">비 여부 판단 불가</span>' : "";
+  const unjudged = (rec.unjudged?.includes("RAIN") ? '<span class="tag warn">비 여부 판단 불가</span>' : "")
+    + (rec.unjudged?.includes("SCHEDULE") ? '<span class="tag warn">일정 겹침 판단 불가</span>' : "");
   const rain = rec.rain_expected ? '<span class="tag info">비 예보</span>' : "";
   let charge = "";
   if (rec.charge_stop) {
@@ -134,7 +141,7 @@ function bindSave(el, r) {
   btn.onclick = async () => {
     btn.disabled = true;
     try {
-      const { plan, overlaps } = await api.createPlan(r.plan_draft);
+      const { plan, overlaps } = await api.createPlan({ ...r.plan_draft, session_id: r.session_id });
       toast(`저장했어요: ${plan.title}` + (overlaps.length ? ` (기간 겹침 ${overlaps.length}건)` : ""), overlaps.length ? "" : "ok");
       btn.textContent = "저장됨";
     } catch (e) { toast(e.message, "bad"); btn.disabled = false; }

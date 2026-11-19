@@ -61,7 +61,7 @@ class World:
         if tool in self.fail:
             raise ToolFailure(self.fail[tool], f"{tool} 실패")
 
-    def registry(self) -> ToolRegistry:
+    def registry(self, extra: list[Tool] | None = None) -> ToolRegistry:
         def campsites(a, meta):
             self._maybe_fail("search_campsites")
             if a.get("require_electric") and self.electric_sites is not None:
@@ -97,7 +97,8 @@ class World:
             return {"stations": self.stations, "station_count": len(self.stations)}
 
         return ToolRegistry([stub("search_campsites", campsites, self.calls), stub("get_route", route, self.calls),
-                             stub("get_weather", weather, self.calls), stub("search_chargers", chargers, self.calls)])
+                             stub("get_weather", weather, self.calls), stub("search_chargers", chargers, self.calls),
+                             *(extra or [])])
 
     def geocode(self, text: str) -> Place:
         if "없는" in text:

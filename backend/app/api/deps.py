@@ -24,3 +24,7 @@ def run_logs(request: Request) -> RunLogRepository:
 
 def anomalies(request: Request) -> AnomalyRepository:
     return request.app.state.anomalies
+
+
+def calendar(request: Request):
+    return request.app.state.calendar

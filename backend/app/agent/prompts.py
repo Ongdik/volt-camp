@@ -18,6 +18,7 @@ def analyze_system(today: date) -> str:
 - 기기는 이번 메시지에서 말한 기기와 값만 devices에 넣는다(이전에 말한 값은 시스템이 유지한다). 빼겠다고 한 기기는 removed_devices에 넣는다.
 - 이전 대화 조건이 있고 사용자가 일부만 바꾸면(예: '같은 날 홍천으로') intent는 MODIFY, 바뀐 값만 채운다.
 - '이걸로 저장', '확정', '그걸로 할게'는 CONFIRM_PLAN.
+- '캘린더에 등록', '일정에 넣어줘'는 REGISTER_CALENDAR. 계획 번호를 말했을 때만 plan_id를 채운다(제목 · 날짜는 뽑지 않는다).
 - 캠핑장 · 충전소 · 날씨만 묻고 계획을 원하지 않으면 FACT_QUERY와 fact_target을 채운다.
 - 인사, 사용법, V2L 설명 같은 질문은 CHITCHAT.
 - intent_reason에 그렇게 판단한 근거를 한 문장으로 쓴다."""
@@ -30,6 +31,7 @@ WRITE_SYSTEM = {
 - 판단하지 못한 항목(unjudged)이 있으면 무엇을 판단하지 못했는지 밝힌다. 비어 있으면 언급하지 않는다.
 - 값이 null이거나 없는 항목(예: 늦어도 도착 시각)은 그 줄을 쓰지 않는다.
 - JSON 키 이름(unjudged, metrics 등)이나 영어 상태 코드를 답변에 그대로 쓰지 않는다.
+- 캘린더 일정과 겹친 후보(SCHEDULE)가 있으면 어떤 일정과 겹치는지 밝히고 날짜 변경을 권한다.
 - 전기 사이트(has_electric)면 캠핑 중 기기는 사이트 전원을 써서 배터리 소비가 없다는 점을 판단 기준에 한 줄로 밝힌다.
 - status가 LIMIT_REACHED나 NO_OPTION이면 왜 못 찾았는지와 suggestions를 제시하고 조건을 바꿀지 묻는다.
 - 마크다운 목록을 쓰되 간결하게.""",
