@@ -18,6 +18,10 @@ V2L(Vehicle-to-Load)을 지원하는 전기차는 캠핑장에서 하나의 작�
 
 ![대화 화면](docs/images/frontend-chat.png)
 
+| 계획 관리 | 실행 로그 (재계획 · Tool 실패 처리) |
+|---|---|
+| ![계획 관리](docs/images/frontend-plans.png) | ![실행 로그](docs/images/frontend-logs.png) |
+
 ## 주요 기능
 
 - **차박 계획 수립**: 출발지 · 날짜 · 차량(배터리 용량 · 잔량) · 사용할 기기를 말하면 캠핑장 후보별로 도착 / 캠핑 후 / 귀가 시 예상 잔량을 계산
