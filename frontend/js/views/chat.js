@@ -147,17 +147,25 @@ const NODE_NAMES = { analyze: "요청 분석", plan: "계획 수립", execute: "
 
 export function renderTimeline(events, target = $("#timeline")) {
   if (!target) return;
-  const results = Object.fromEntries(events.filter((e) => e.type === "TOOL_RESULT").map((e) => [e.payload.step_id, e.payload]));
+  // step_id는 턴마다 1부터 다시 시작하므로 (턴, 단계)로 짝짓는다
+  const stepKey = (e) => `${e.turn_id ?? ""}:${e.payload?.step_id}`;
+  const results = Object.fromEntries(events.filter((e) => e.type === "TOOL_RESULT").map((e) => [stepKey(e), e.payload]));
+  const multiTurn = new Set(events.map((e) => e.turn_id)).size > 1;
   const rows = [];
+  let turn = null, turnNo = 0;
   for (const e of events) {
     const p = e.payload || {};
     const seq = `<span class="seq">${e.seq}</span>`;
+    if (multiTurn && e.turn_id !== turn) {
+      turn = e.turn_id; turnNo += 1;
+      rows.push(`<div class="turn-mark">턴 ${turnNo}</div>`);
+    }
     if (e.type === "NODE_ENTER") rows.push(`<div class="ev node">${seq}<span class="body">▶ ${NODE_NAMES[e.node] || e.node}</span></div>`);
     else if (e.type === "LLM_DECISION") {
       const decision = Array.isArray(p.decision) ? p.decision.map(toolName).join(" → ") : p.decision;
       rows.push(`<div class="ev llm">${seq}<span class="body">${p.kind === "intent" ? "의도" : "계획"}: <b>${esc(decision)}</b>${p.by === "rule" ? '<span class="chip">규칙</span>' : '<span class="chip">LLM</span>'}<span class="why">${esc(p.reason)}</span></span></div>`);
     } else if (e.type === "TOOL_CALL") {
-      const res = results[p.step_id] || {};
+      const res = results[stepKey(e)] || {};
       const fail = res.ok === false;
       rows.push(`<div class="ev tool ${fail ? "fail" : ""}">${seq}<span class="body">${toolName(p.tool)} · ${esc(p.purpose)}`
         + `<span class="chip">${fail ? esc(res.error_code) : "ok"}</span><span class="chip">${res.elapsed_ms ?? "-"}ms</span>`
