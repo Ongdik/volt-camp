@@ -6,13 +6,15 @@ from app.db.database import Database
 from app.db.run_logs import RunLogRepository
 from app.events.bus import EventBus
 from app.logging_agent.agent import LoggingAgent
-from scripts.verify_anomaly import DropStartRepo, HiddenStepAgent, RetryBugAgent
+from scripts.verify_anomaly import DropStartRepo, HiddenStepAgent, RetryBugAgent, StubbornReplanAgent
 from tests.agent_stubs import FULL_TRIP, TODAY, FakeLLM, World, camp
 
 SCRIPT = {"m": FULL_TRIP, "fact": {"intent": "FACT_QUERY", "intent_reason": "조회", "region": "가평",
                                    "fact_target": "campsites"},
           "hi": {"intent": "CHITCHAT", "intent_reason": "인사"},
-          "far": {**FULL_TRIP, "soc_start_pct": 20, "min_return_pct": 60}}
+          "far2": {**FULL_TRIP, "soc_start_pct": 30, "min_return_pct": 50},
+          "far": {**FULL_TRIP, "soc_start_pct": 60, "min_return_pct": 15,
+                  "devices": [{"name": "전기히터", "hours": 10}]}}
 
 
 def stack(repo_cls=RunLogRepository):
@@ -53,8 +55,8 @@ def test_hidden_step_is_unplanned_tool():
 
 
 def test_replan_up_to_limit_is_excessive():
-    world = World(campsites=[camp("c1", "A", False)], electric_sites=[camp("e1", "E", True)],
-                  wide_sites=[camp("w1", "W", False)], distance_km=200, stations=[])
+    world = World(campsites=[camp("c1", "A", None)], electric_sites=[], wide_sites=[camp("w1", "W", None)],
+                  stations=[])
     r, v, diagnosed, _ = run(PlannerAgent, "far", world)
     assert len(r["replans"]) == 3
     assert "EXCESSIVE_REPLAN" in [f["rule"] for f in v["findings"]]
@@ -63,3 +65,11 @@ def test_replan_up_to_limit_is_excessive():
 def test_lost_turn_start_is_undecidable_without_llm():
     r, v, diagnosed, _ = run(PlannerAgent, "hi", repo_cls=DropStartRepo)
     assert v["verdict"] == "UNDECIDABLE" and diagnosed == []
+
+
+def test_stubborn_replan_bug_hits_limit_even_when_strategies_cannot_help():
+    # 고치기 전 규칙(소용없는 재계획도 시도)을 버그로 주입: 주행만으로 부족한 조건에서도 상한까지 재계획
+    world = World(campsites=[camp("c1", "A", None)], electric_sites=[camp("e1", "E", True)],
+                  wide_sites=[camp("w1", "W", None)], distance_km=200, stations=[])
+    r, v, diagnosed, _ = run(StubbornReplanAgent, "far2", world)
+    assert len(r["replans"]) == 3 and "EXCESSIVE_REPLAN" in [f["rule"] for f in v["findings"]]

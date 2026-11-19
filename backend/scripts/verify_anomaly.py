@@ -3,7 +3,8 @@
 만드는 실행 (세션 이름이 check- 로 시작해 실행 로그 화면에서 구분된다)
   check-normal      정상 차박 계획            → OK, LLM 진단 0회
   check-repeat      버그 주입: 성공한 날씨 조회를 캐시 없이 다시 호출 → REPEATED_CALL + LLM 원인 진단
-  check-replan      조건을 못 맞춰 재계획을 상한까지 반복 (실제 API) → EXCESSIVE_REPLAN + LLM 원인 진단
+  check-replan      버그 주입: 소용없는 재계획을 건너뛰지 않는 옛 규칙 + 무리한 조건(실제 API)
+                    → 재계획 상한 도달 EXCESSIVE_REPLAN + LLM 원인 진단
   check-unplanned   버그 주입: 계획 결정에 없는 Tool을 실행     → UNPLANNED_TOOL + LLM 원인 진단
   check-undecid     로그 저장 실패 흉내: 턴 시작 이벤트 유실   → UNDECIDABLE (이상 없음 아님), LLM 0회
   check-repeat 2턴  같은 세션 다음 턴에서 메인 Agent가 직전 경고를 참조(previous_warning)하는지
@@ -23,6 +24,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.agent.factory import default_registry  # noqa: E402
+from app.agent import graph as graph_mod  # noqa: E402
 from app.agent.graph import PlannerAgent  # noqa: E402
 from app.agent.llm import make_diagnoser  # noqa: E402
 from app.agent.memory import MemoryStore  # noqa: E402
@@ -75,6 +77,19 @@ class RetryBugAgent(PlannerAgent):
         if step["tool"] == "get_weather" and result["ok"]:
             result = super()._call(state, em, step, {})
         return result
+
+
+class StubbornReplanAgent(PlannerAgent):
+    """버그 주입: '소용없는 재계획 건너뛰기'를 끈 옛 규칙. 갈 수 없는 충전소 · 해결 안 되는 전기 사이트도 시도한다."""
+
+    def _next_strategy(self, state):
+        saved = graph_mod._charge_can_help, graph_mod._electric_can_help
+        graph_mod._charge_can_help = lambda e: True
+        graph_mod._electric_can_help = lambda e: bool({"RAIN", "ENERGY"} & set(e["failed"]))
+        try:
+            return super()._next_strategy(state)
+        finally:
+            graph_mod._charge_can_help, graph_mod._electric_can_help = saved
 
 
 class HiddenStepAgent(PlannerAgent):
@@ -139,7 +154,7 @@ def main() -> int:
     runs = [
         ("check-normal", agent(), "정상 계획", "OK"),
         ("check-repeat", agent(RetryBugAgent), "정상 계획", "WARN:REPEATED_CALL"),
-        ("check-replan", agent(), "강릉 무리한 계획", "WARN:EXCESSIVE_REPLAN"),
+        ("check-replan", agent(StubbornReplanAgent), "강릉 무리한 계획", "WARN:EXCESSIVE_REPLAN"),
         ("check-unplanned", agent(HiddenStepAgent), "가평 캠핑장 알려줘", "WARN:UNPLANNED_TOOL"),
         ("check-undecid", agent(on_bus=broken_bus), "안녕", "UNDECIDABLE"),
     ]
