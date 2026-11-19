@@ -33,6 +33,7 @@ class Analysis(BaseModel):
     efficiency_km_per_kwh: float | None = Field(default=None, description="전비 km/kWh (말한 경우만)")
     min_return_pct: float | None = Field(default=None, description="귀가 때 남길 최소 잔량 %")
     devices: list[DeviceUse] | None = Field(default=None, description="캠핑장에서 쓸 기기 목록. 말하지 않았으면 null")
+    removed_devices: list[str] | None = Field(default=None, description="이제 안 쓰겠다고 한 기기 이름. 없으면 null")
     prefer_electric: bool | None = Field(default=None, description="전기 사이트 캠핑장을 원하는지")
     allow_charging: bool | None = Field(default=None, description="가는 길 충전을 허용하는지 (거부하면 false)")
     fast_only: bool | None = Field(default=None, description="급속 충전기만 원하는지")
@@ -57,13 +58,29 @@ class Conditions(BaseModel):
     fast_only: bool | None = None
 
     def merge(self, analysis: Analysis) -> tuple["Conditions", list[str]]:
-        """값이 있는 항목만 갱신한 새 조건과, 바뀐 항목 이름을 돌려준다."""
+        """값이 있는 항목만 갱신한 새 조건과, 바뀐 항목 이름을 돌려준다.
+
+        기기는 이름 기준으로 합친다. 여러 턴에 나눠 말해도("전기난로 4시간" → "전기난로는 1000W")
+        앞에서 말한 값이 남도록, 새로 말한 값만 갱신하고 말하지 않은 기기 · 값은 유지한다."""
         updates = {k: v for k, v in analysis.model_dump().items()
-                   if k in Conditions.model_fields and v is not None}
-        changed = [k for k, v in updates.items() if getattr(self, k) != (
-            [DeviceUse(**d) for d in v] if k == "devices" else v)]
-        return self.model_copy(update={k: ([DeviceUse(**d) for d in v] if k == "devices" else v)
-                                       for k, v in updates.items()}), changed
+                   if k in Conditions.model_fields and v is not None and k != "devices"}
+        devices = self._merge_devices(analysis.devices, analysis.removed_devices)
+        if devices != self.devices:
+            updates["devices"] = devices
+        changed = [k for k, v in updates.items() if getattr(self, k) != v]
+        return self.model_copy(update=updates), changed
+
+    def _merge_devices(self, new: list[DeviceUse] | None, removed: list[str] | None) -> list[DeviceUse] | None:
+        if new is None and not removed:
+            return self.devices
+        merged = {d.name: d.model_copy() for d in (self.devices or [])}
+        for d in new or []:
+            old = merged.get(d.name)
+            merged[d.name] = d.model_copy() if old is None else old.model_copy(update={
+                k: v for k, v in d.model_dump().items() if v is not None})
+        for name in removed or []:
+            merged.pop(name, None)
+        return list(merged.values()) or None
 
     @property
     def end_date(self) -> date | None:
