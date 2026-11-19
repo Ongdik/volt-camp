@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS anomalies (
     findings_json TEXT NOT NULL,
     diagnosis TEXT,
     diagnosis_status TEXT NOT NULL DEFAULT 'NONE',
+    reason TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_anomalies_session ON anomalies(session_id, id);
@@ -74,6 +75,14 @@ class Database:
         self._conn.row_factory = sqlite3.Row
         self._lock = threading.RLock()
         self.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """이미 만들어진 DB 파일에 새 칸을 더한다 (CREATE TABLE IF NOT EXISTS는 칸을 추가하지 않으므로)."""
+        with self.tx() as c:
+            cols = {r["name"] for r in c.execute("PRAGMA table_info(anomalies)").fetchall()}
+            if "reason" not in cols:
+                c.execute("ALTER TABLE anomalies ADD COLUMN reason TEXT NOT NULL DEFAULT ''")
 
     def executescript(self, script: str) -> None:
         with self._lock:

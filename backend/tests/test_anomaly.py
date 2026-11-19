@@ -4,6 +4,7 @@ from app.db.anomalies import AnomalyRepository
 from app.db.database import Database
 from app.db.run_logs import RunLogRepository
 from app.events.bus import EventBus, RunEmitter
+from app.events.types import Event
 from app.events.types import EventType as T
 from app.logging_agent.agent import LoggingAgent
 from app.logging_agent.anomaly import judge_turn
@@ -116,3 +117,23 @@ def test_diagnosis_failure_keeps_verdict(stack):
     [a] = anomalies.for_session("S")
     assert a["verdict"] == "WARN" and a["diagnosis_status"] == "FAILED" and a["diagnosis"] is None
     assert logs.get_session("S")                                      # 로그도 그대로
+
+
+def test_undecidable_reason_is_saved(stack):
+    logs, anomalies = stack
+    LoggingAgent(logs, anomalies).handle(Event(session_id="U", turn_id="tu", seq=1, type=T.TURN_END, payload={}))
+    [a] = anomalies.for_session("U")
+    assert a["verdict"] == "UNDECIDABLE" and "판정할 수 없습니다" in a["reason"]
+
+
+def test_old_db_file_gets_reason_column(tmp_path):
+    import sqlite3
+    path = tmp_path / "old.db"
+    con = sqlite3.connect(path)
+    con.execute("CREATE TABLE anomalies (id INTEGER PRIMARY KEY, session_id TEXT, turn_id TEXT UNIQUE, verdict TEXT,"
+                " findings_json TEXT, diagnosis TEXT, diagnosis_status TEXT, created_at TEXT)")
+    con.commit()
+    con.close()
+    repo = AnomalyRepository(Database(str(path)))
+    repo.save_verdict("S", "t", "OK", [], "")
+    assert repo.for_session("S")[0]["reason"] == ""

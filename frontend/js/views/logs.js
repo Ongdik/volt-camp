@@ -31,7 +31,8 @@ async function detail(root, sessionId) {
       const [cls, label] = VERDICT[a.verdict] || ["info", a.verdict];
       const findings = a.findings.map((f) => `<li>${esc(f.rule)} — ${esc(f.detail)} <span class="chip">#${f.evidence_seq.join(",")}</span></li>`).join("");
       const diag = a.verdict === "WARN" ? `<div class="charge">🩺 원인 진단(LLM): ${a.diagnosis ? esc(a.diagnosis) : a.diagnosis_status === "PENDING" ? "진단 중…" : a.diagnosis_status === "FAILED" ? "진단 실패 (판정은 유지)" : "-"}</div>` : "";
-      return `<div class="card"><b>턴 ${i + 1}</b> <span class="tag ${cls}">${label}</span><span class="chip">규칙 판정</span>${findings ? `<ul>${findings}</ul>` : ""}${diag}</div>`;
+      const why = a.verdict === "UNDECIDABLE" && a.reason ? `<div class="sub">${esc(a.reason)} — '이상 없음'과 구분해 남겨요.</div>` : "";
+      return `<div class="card"><b>턴 ${i + 1}</b> <span class="tag ${cls}">${label}</span><span class="chip">규칙 판정</span>${findings ? `<ul>${findings}</ul>` : ""}${why}${diag}</div>`;
     }).join("");
     box.innerHTML = `<div class="actions" style="margin-top:0"><button class="danger" id="del-log">이 세션 로그 삭제</button></div>
       <h4>이상 징후 점검</h4>${checks || '<div class="empty">점검 결과 없음</div>'}

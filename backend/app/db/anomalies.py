@@ -13,12 +13,13 @@ class AnomalyRepository:
     def __init__(self, db: Database):
         self.db = db
 
-    def save_verdict(self, session_id: str, turn_id: str, verdict: str, findings: list[dict[str, Any]]) -> None:
+    def save_verdict(self, session_id: str, turn_id: str, verdict: str, findings: list[dict[str, Any]],
+                     reason: str = "") -> None:
         with self.db.tx() as c:
             c.execute("INSERT OR REPLACE INTO anomalies (session_id, turn_id, verdict, findings_json, diagnosis_status,"
-                      " created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                      " reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
                       (session_id, turn_id, verdict, json.dumps(findings, ensure_ascii=False),
-                       "PENDING" if verdict == "WARN" else "NONE",
+                       "PENDING" if verdict == "WARN" else "NONE", reason,
                        datetime.now(timezone.utc).isoformat(timespec="seconds")))
 
     def save_diagnosis(self, turn_id: str, diagnosis: str | None, status: str) -> None:
