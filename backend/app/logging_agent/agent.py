@@ -52,7 +52,7 @@ class LoggingAgent:
         try:
             events = [e for e in self.repo.get_session(session_id) if e["turn_id"] == turn_id]
             result = judge_turn(events, self.max_replan)
-            self.anomalies.save_verdict(session_id, turn_id, result["verdict"], result["findings"])
+            self.anomalies.save_verdict(session_id, turn_id, result["verdict"], result["findings"], result.get("reason", ""))
         except Exception:  # noqa: BLE001
             logger.exception("이상 징후 판정 실패 (turn=%s)", turn_id)
             return
